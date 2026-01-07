@@ -95,7 +95,9 @@ rce-frontend/
 │   ├── components/   # React components
 │   ├── pages/        # Page components
 │   ├── store/        # State management (Zustand)
-│   ├── utils/        # Utility functions
+│   ├── utils/        # Utility functions (includes subfunctions module)
+│   ├── constants/    # Constants and static data (subfunctions data)
+│   ├── types/        # TypeScript type definitions
 │   ├── lib/          # Library configurations
 │   ├── App.tsx       # Main App component
 │   ├── main.tsx      # Entry point
@@ -154,10 +156,30 @@ Type definitions are automatically included for:
 - Vite environment variables
 - React Beautiful DnD
 
+## Subfunctions Module
+
+The project includes a complete subfunctions module for the rules engine with **50 predefined functions** organized by category:
+
+- **String Functions (20)**: Replace All, Substring, Uppercase, Lowercase, Trim, Contains, Length, Pad Left, Pad Right, Regex Replace, Split, Starts With, Ends With, Index Of, Concat, Repeat, Reverse, Match Regex, Capitalize, Remove Whitespace
+- **Number Functions (15)**: Add, Subtract, Multiply, Divide, Modulo, Power, Square Root, Absolute, Round, Floor, Ceiling, Max, Min, Random, To Fixed
+- **Date Functions (11)**: Add Months, Add Days, Add Years, Format Date, Format Chinese Date, Get Year, Get Month, Get Day, Date Difference, Current Date, Is Valid Date
+- **Utility Functions (16)**: Is Empty, Is Null, Is Number, Is String, Is Boolean, To String, To Number, To Boolean, Default Value, Equals, Not Equals, Greater Than, Less Than, AND, OR, NOT
+
+See [SUBFUNCTIONS_USAGE.md](SUBFUNCTIONS_USAGE.md) for detailed documentation and [SUBFUNCTIONS_LIST.md](SUBFUNCTIONS_LIST.md) for complete function list.
+
+Quick example:
+```typescript
+import { getSubfunctionsByCategory } from '@/utils/subfunctions';
+
+// Get functions grouped by category
+const grouped = getSubfunctionsByCategory();
+// Returns: { "STR": [...], "NUM": [...], "DATE": [...], "UTIL": [...] }
+```
+
 ## Notes
 
 - This frontend is designed to work with a separate backend server
-- Make sure your backend API is running before starting the frontend
+- Make sure your backend API is running before starting the frontend (default port: 8080)
 - Update CORS settings on your backend to allow requests from the frontend origin
 - TypeScript strict mode is enabled for better type safety
 - Use `npm run type-check` before commits to catch type errors early
