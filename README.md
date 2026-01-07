@@ -20,7 +20,7 @@ cp .env.example .env
 
 2. Update the `.env` file with your backend API URL:
 ```
-VITE_API_URL=http://localhost:5000
+VITE_API_URL=http://localhost:8080
 ```
 
 For production, set this to your backend server URL (e.g., `https://api.yourdomain.com`)
@@ -81,7 +81,7 @@ docker build -t rce-frontend:prod .
 
 Run the container:
 ```bash
-docker run -p 80:80 -e BACKEND_URL=http://your-backend-url:5000 rce-frontend:prod
+docker run -p 80:80 -e BACKEND_URL=http://your-backend-url:8080 rce-frontend:prod
 ```
 
 Note: The BACKEND_URL environment variable is used by nginx to proxy API requests.
