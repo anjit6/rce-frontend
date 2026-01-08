@@ -4,17 +4,10 @@ import { Button, Input, Select, Collapse, Modal } from 'antd';
 import { PlusOutlined, CloseOutlined, SearchOutlined } from '@ant-design/icons';
 import Layout from '../../components/layout/Layout';
 import { getRuleById } from '../../data/rules';
+import { InputParameter, FunctionType, ConfigurationStep } from '../../types/rule-configuration';
+import RuleConfigurationCard from '../../components/rules/RuleConfigurationCard';
 
 const { Panel } = Collapse;
-
-interface InputParameter {
-    id: string;
-    name: string;
-    size: string;
-    type: string;
-}
-
-type FunctionType = 'find-replace' | 'concatenate' | 'date-format' | 'conditional' | null;
 
 export default function RuleCreatePage() {
     const { ruleId } = useParams<{ ruleId: string }>();
@@ -22,10 +15,10 @@ export default function RuleCreatePage() {
     const [rule, setRule] = useState<any>(null);
     const [configurationStarted, setConfigurationStarted] = useState(false);
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
-    const [selectedFunction, setSelectedFunction] = useState<FunctionType>(null);
+    const [configurationSteps, setConfigurationSteps] = useState<ConfigurationStep[]>([]);
     const [inputParameters, setInputParameters] = useState<InputParameter[]>([
-        { id: '1', name: 'Input Parameter 1', size: 'Size 1', type: 'String' },
-        { id: '2', name: 'Input Parameter 2', size: 'Size 2', type: 'String' }
+        { id: '1', name: 'Input Parameter 1', size: '', type: 'String' },
+        { id: '2', name: 'Input Parameter 2', size: '', type: 'String' }
     ]);
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -45,7 +38,7 @@ export default function RuleCreatePage() {
         const newParam: InputParameter = {
             id: Date.now().toString(),
             name: `Input Parameter ${inputParameters.length + 1}`,
-            size: `Size ${inputParameters.length + 1}`,
+            size: '',
             type: 'String'
         };
         setInputParameters([...inputParameters, newParam]);
@@ -74,8 +67,16 @@ export default function RuleCreatePage() {
     };
 
     const handleFunctionSelect = (functionType: FunctionType) => {
-        setSelectedFunction(functionType);
+        const newStep: ConfigurationStep = {
+            id: Date.now().toString(),
+            type: functionType
+        };
+        setConfigurationSteps([...configurationSteps, newStep]);
         setIsConfigModalOpen(false);
+    };
+
+    const handleAddStep = () => {
+        setIsConfigModalOpen(true);
     };
 
     if (!rule) {
@@ -120,98 +121,6 @@ export default function RuleCreatePage() {
         { name: 'NOT', type: null }
     ];
 
-    // Render configuration card based on selected function
-    const renderConfigurationCard = () => {
-        if (!selectedFunction) return null;
-
-        switch (selectedFunction) {
-            case 'find-replace':
-                return (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                        <h3 className="text-base font-medium text-gray-900 mb-4">String Function - Find & Replace</h3>
-                        <Select
-                            placeholder="Find and Replace"
-                            className="w-full mb-4"
-                            size="large"
-                        />
-                        <div className="grid grid-cols-3 gap-4">
-                            <Select placeholder="Search In" size="large" />
-                            <Select placeholder="Search For" size="large" />
-                            <Select placeholder="Replace With" size="large" />
-                        </div>
-                        <div className="mt-4 flex justify-end gap-3">
-                            <Button onClick={() => setSelectedFunction(null)} className="hover:border-red-500 hover:text-red-500 focus:border-red-500 focus:text-red-500">Cancel</Button>
-                            <Button type="primary" className="bg-red-600 hover:bg-red-500 focus:bg-red-500 border-none">Add</Button>
-                        </div>
-                    </div>
-                );
-
-            case 'concatenate':
-                return (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                        <h3 className="text-base font-medium text-gray-900 mb-4">String Function - Concatenate</h3>
-                        <div className="grid grid-cols-3 gap-4 mb-4">
-                            <Select placeholder="Input Parameter 1" size="large" />
-                            <Select placeholder="Input Parameter 2" size="large" />
-                            <Select placeholder="Static Text" size="large" />
-                        </div>
-                        <Input placeholder="Enter Text" size="large" className="mb-4" />
-                        <div className="flex justify-end gap-3">
-                            <Button onClick={() => setSelectedFunction(null)}>Cancel</Button>
-                            <Button type="primary" className="bg-red-600 hover:bg-red-500 border-none">Add</Button>
-                        </div>
-                    </div>
-                );
-
-            case 'date-format':
-                return (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                        <h3 className="text-base font-medium text-gray-900 mb-4">Date Format</h3>
-                        <div className="space-y-4">
-                            <Select placeholder="Select Date Input" size="large" className="w-full" />
-                            <Select placeholder="Select Format (DD/MM/YYYY)" size="large" className="w-full" />
-                        </div>
-                        <div className="mt-4 flex justify-end gap-3">
-                            <Button onClick={() => setSelectedFunction(null)} className="hover:border-red-500 hover:text-red-500 focus:border-red-500 focus:text-red-500">Cancel</Button>
-                            <Button type="primary" className="bg-red-600 hover:bg-red-500 focus:bg-red-500 border-none">Add</Button>
-                        </div>
-                    </div>
-                );
-
-            case 'conditional':
-                return (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                        <h3 className="text-base font-medium text-gray-900 mb-4">Conditional - IF</h3>
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-3 gap-4">
-                                <Select placeholder="Variable" size="large" />
-                                <Select placeholder="Equals" size="large" />
-                                <Select placeholder="Static Text" size="large" />
-                            </div>
-                            <Input placeholder="Enter Value" size="large" />
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">TRUE</label>
-                                    <Select placeholder="Select" size="large" className="w-full" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">FALSE</label>
-                                    <Select placeholder="Select" size="large" className="w-full" />
-                                </div>
-                            </div>
-                        </div>
-                        <div className="mt-4 flex justify-end gap-3">
-                            <Button onClick={() => setSelectedFunction(null)} className="hover:border-red-500 hover:text-red-500 focus:border-red-500 focus:text-red-500">Cancel</Button>
-                            <Button type="primary" className="bg-red-600 hover:bg-red-500 focus:bg-red-500 border-none">Add</Button>
-                        </div>
-                    </div>
-                );
-
-            default:
-                return null;
-        }
-    };
-
     return (
         <Layout>
             <div className="min-h-screen bg-gray-50">
@@ -234,36 +143,40 @@ export default function RuleCreatePage() {
                                         <div className="w-40 flex-shrink-0">
                                             <label className="text-sm font-medium text-gray-700">{param.name}</label>
                                         </div>
-                                        <Input
-                                            value={param.size}
-                                            onChange={(e) => updateInputParameter(param.id, 'size', e.target.value)}
-                                            className="flex-1"
-                                            placeholder="Enter size"
-                                        />
-                                        <Select
-                                            value={param.type}
-                                            onChange={(value) => updateInputParameter(param.id, 'type', value)}
-                                            className="w-48"
-                                            options={[
-                                                { value: 'String', label: 'String' },
-                                                { value: 'Number', label: 'Number' },
-                                                { value: 'Date', label: 'Date' },
-                                                { value: 'Boolean', label: 'Boolean' }
-                                            ]}
-                                        />
-                                        <Button
-                                            icon={<PlusOutlined />}
-                                            onClick={addInputParameter}
-                                            className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300"
-                                            type="text"
-                                        />
-                                        <Button
-                                            icon={<CloseOutlined />}
-                                            onClick={() => removeInputParameter(param.id)}
-                                            disabled={index === 0}
-                                            className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                            type="text"
-                                        />
+                                        <div className="flex-1 flex gap-4">
+                                            <Input
+                                                value={param.size}
+                                                onChange={(e) => updateInputParameter(param.id, 'size', e.target.value)}
+                                                className="flex-1"
+                                                placeholder="Enter size"
+                                            />
+                                            <Select
+                                                value={param.type}
+                                                onChange={(value) => updateInputParameter(param.id, 'type', value)}
+                                                className="flex-1"
+                                                options={[
+                                                    { value: 'String', label: 'String' },
+                                                    { value: 'Number', label: 'Number' },
+                                                    { value: 'Date', label: 'Date' },
+                                                    { value: 'Boolean', label: 'Boolean' }
+                                                ]}
+                                            />
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                icon={<PlusOutlined />}
+                                                onClick={addInputParameter}
+                                                className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300"
+                                                type="text"
+                                            />
+                                            <Button
+                                                icon={<CloseOutlined />}
+                                                onClick={() => removeInputParameter(param.id)}
+                                                disabled={index === 0}
+                                                className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                                type="text"
+                                            />
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -271,21 +184,55 @@ export default function RuleCreatePage() {
 
                         {/* Start Configuration */}
                         <div className="flex flex-col items-center py-8">
-                            <p className="text-sm text-gray-600 mb-4">Start Configuration</p>
+                            <p className="text-sm font-bold text-gray-900 mb-4">Start Configuration</p>
                             <Button
                                 type="primary"
                                 size="large"
                                 onClick={handleStartConfiguration}
-                                className="bg-red-600 hover:bg-red-500 focus:bg-red-500 border-none rounded-lg px-8"
+                                disabled={configurationStarted || configurationSteps.length > 0}
+                                className="bg-red-600 hover:bg-red-500 focus:bg-red-500 border-none rounded-lg px-8 disabled:bg-gray-300 disabled:text-gray-500"
                             >
                                 Start
                             </Button>
                         </div>
 
-                        {/* Configuration Card - Show after selecting function */}
-                        {configurationStarted && selectedFunction && (
+                        {/* Configuration Steps */}
+                        {configurationSteps.length > 0 && (
                             <>
-                                {renderConfigurationCard()}
+                                {/* Vertical Line connecting Start to first Card */}
+                                <div className="h-8 w-px bg-gray-300 mx-auto -mt-8"></div>
+
+                                {configurationSteps.map((step, index) => (
+                                    <div key={step.id}>
+                                        <RuleConfigurationCard
+                                            step={step}
+                                            inputParameters={inputParameters}
+                                        />
+
+                                        {/* Vertical connector line */}
+                                        <div className="h-8 w-px bg-gray-300 mx-auto -mt-6"></div>
+
+                                        {/* Add Button - Disabled unless it's the last step */}
+                                        <div className="flex justify-center mb-8">
+                                            <Button
+                                                type="primary"
+                                                className={`border-none px-8 h-10 rounded-md ${index === configurationSteps.length - 1
+                                                    ? 'bg-red-600 hover:bg-red-500'
+                                                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                    }`}
+                                                disabled={index !== configurationSteps.length - 1}
+                                                onClick={() => index === configurationSteps.length - 1 && handleAddStep()}
+                                            >
+                                                Add
+                                            </Button>
+                                        </div>
+
+                                        {/* Connector line to next card if not the last one */}
+                                        {index < configurationSteps.length - 1 && (
+                                            <div className="h-8 w-px bg-gray-300 mx-auto -mt-8"></div>
+                                        )}
+                                    </div>
+                                ))}
 
                                 {/* Output Section */}
                                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
