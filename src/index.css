@@ -157,6 +157,7 @@ body {
   height: 44px !important;
   padding: 6px 16px !important;
   border-radius: 8px !important;
+  border: 1px solid hsl(214.3 31.8% 91.4%) !important;
 }
 
 .ant-select-focused .ant-select-selector {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tooltip } from 'antd';
+import { Tooltip, Select } from 'antd';
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { ConfigurationStep, InputParameter } from '../../types/rule-configuration';
 import { SUBFUNCTIONS } from '../../constants/subfunctions';
@@ -97,46 +97,57 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                         {subfunc.inputParams?.map((param, idx) => {
                             const paramConfig = config.params?.[idx] || {};
+
+                            // Build options for Type dropdown
+                            const typeOptions = [
+                                ...inputParameters.map(p => ({
+                                    label: p.fieldName,
+                                    value: p.name
+                                })),
+                                ...configurationSteps
+                                    .slice(0, stepIndex)
+                                    .filter(s => s.type === 'subfunction' && s.config?.outputVariable)
+                                    .map((s) => ({
+                                        label: s.config.outputVariable,
+                                        value: s.config.outputVariable
+                                    })),
+                                { label: 'Static Value', value: 'Static Value' }
+                            ];
+
                             return (
                                 <div key={idx}>
                                     <Label className="text-sm font-medium text-gray-700 mb-2 block">
                                         {param.label || param.name}
                                     </Label>
-                                    <CustomSelect
-                                        value={paramConfig.type || ''}
-                                        onChange={(e) => handleParamTypeChange(idx, e.target.value)}
+                                    <Select
+                                        showSearch
+                                        value={paramConfig.type || undefined}
+                                        onChange={(value) => handleParamTypeChange(idx, value)}
+                                        placeholder={`Select ${param.label || param.name}`}
                                         className="w-full"
-                                        selectSize="lg"
-                                    >
-                                        <option value="" disabled>Select {param.label || param.name}</option>
-                                        {inputParameters.map(p => (
-                                            <option key={p.id} value={p.name}>{p.fieldName}</option>
-                                        ))}
-                                        {configurationSteps
-                                            .slice(0, stepIndex)
-                                            .filter(s => s.type === 'subfunction' && s.config?.outputVariable)
-                                            .map((s) => (
-                                                <option key={`step-${s.id}`} value={s.config.outputVariable}>
-                                                    {s.config.outputVariable}
-                                                </option>
-                                            ))
+                                        size="large"
+                                        options={typeOptions}
+                                        filterOption={(input, option) =>
+                                            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                                         }
-                                        <option value="Static Value">Static Value</option>
-                                    </CustomSelect>
+                                        popupMatchSelectWidth={false}
+                                        listHeight={256}
+                                    />
                                     {paramConfig.type === 'Static Value' && (
                                         <div className="mt-2 space-y-2">
-                                            <CustomSelect
-                                                value={paramConfig.dataType || ''}
-                                                onChange={(e) => handleParamDataTypeChange(idx, e.target.value)}
+                                            <Select
+                                                value={paramConfig.dataType || undefined}
+                                                onChange={(value) => handleParamDataTypeChange(idx, value)}
+                                                placeholder="Select data type"
                                                 className="w-full"
-                                                selectSize="lg"
-                                            >
-                                                <option value="" disabled>Select data type</option>
-                                                <option value="STRING">String</option>
-                                                <option value="NUMBER">Number</option>
-                                                <option value="BOOLEAN">Boolean</option>
-                                                <option value="DATE">Date</option>
-                                            </CustomSelect>
+                                                size="large"
+                                                options={[
+                                                    { label: 'String', value: 'STRING' },
+                                                    { label: 'Number', value: 'NUMBER' },
+                                                    { label: 'Boolean', value: 'BOOLEAN' },
+                                                    { label: 'Date', value: 'DATE' }
+                                                ]}
+                                            />
                                             <Input
                                                 value={paramConfig.value || ''}
                                                 onChange={(e) => handleParamValueChange(idx, e.target.value)}

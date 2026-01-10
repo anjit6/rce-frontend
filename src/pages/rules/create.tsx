@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Button, Collapse, Modal, Tooltip } from 'antd';
+import { Button, Collapse, Modal, Tooltip, Select } from 'antd';
 import { PlusOutlined, CloseOutlined, SearchOutlined, ExclamationCircleOutlined, CloseCircleFilled, CheckOutlined, CopyOutlined } from '@ant-design/icons';
 import Layout from '../../components/layout/Layout';
 import { getRuleById, updateRule } from '../../data/rules';
@@ -647,7 +647,7 @@ export default function RuleCreatePage() {
                     </div>
 
                     {/* Define Input Parameters */}
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 pb-8 mb-6">
                         <div className="flex items-start justify-between mb-1">
                             <div>
                                 <h2 className="text-lg font-semibold text-gray-900 mb-1">Define Input Parameters</h2>
@@ -667,25 +667,33 @@ export default function RuleCreatePage() {
                             </Button>
                         </div>
 
-                        <div className="space-y-4 max-h-[400px] overflow-y-auto mt-6">
+                        <div className="space-y-4 max-h-[400px] overflow-y-auto mt-6 px-1 pb-1">
                             {inputParameters.map((param, index) => (
                                 <div key={param.id}>
-                                    <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-4 items-start">
+                                    <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-6 items-start">
                                         {/* Type Column */}
                                         <div>
                                             <Label className="text-sm font-medium text-gray-700 mb-2 block">Type <span className="text-black">*</span></Label>
-                                            <CustomSelect
-                                                value={param.type}
-                                                onChange={(e) => updateInputParameter(param.id, 'type', e.target.value)}
+                                            <Select
+                                                showSearch
+                                                value={param.type || undefined}
+                                                onChange={(value) => updateInputParameter(param.id, 'type', value)}
+                                                placeholder="Select type"
                                                 className="w-full"
-                                                selectSize="lg"
-                                                variant={parameterErrors[param.id]?.type ? 'error' : 'default'}
+                                                size="large"
                                                 disabled={parametersLocked}
-                                            >
-                                                <option value="Input field">Input field</option>
-                                                <option value="Metadata field">Metadata field</option>
-                                                <option value="String">String</option>
-                                            </CustomSelect>
+                                                status={parameterErrors[param.id]?.type ? 'error' : undefined}
+                                                options={[
+                                                    { label: 'Input field', value: 'Input field' },
+                                                    { label: 'Metadata field', value: 'Metadata field' },
+                                                    { label: 'String', value: 'String' }
+                                                ]}
+                                                filterOption={(input, option) =>
+                                                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                                }
+                                                popupMatchSelectWidth={false}
+                                                listHeight={256}
+                                            />
                                             {parameterErrors[param.id]?.type && (
                                                 <span className="text-red-500 text-xs mt-1 block">This field is required</span>
                                             )}
@@ -719,19 +727,27 @@ export default function RuleCreatePage() {
                                         {/* Field Data Type Column */}
                                         <div>
                                             <Label className="text-sm font-medium text-gray-700 mb-2 block">Field Data Type <span className="text-black">*</span></Label>
-                                            <CustomSelect
+                                            <Select
+                                                showSearch
                                                 value={param.dataType || 'String'}
-                                                onChange={(e) => updateInputParameter(param.id, 'dataType', e.target.value)}
+                                                onChange={(value) => updateInputParameter(param.id, 'dataType', value)}
+                                                placeholder="Select data type"
                                                 className="w-full"
-                                                selectSize="lg"
-                                                variant={parameterErrors[param.id]?.dataType ? 'error' : 'default'}
+                                                size="large"
                                                 disabled={parametersLocked}
-                                            >
-                                                <option value="String">String</option>
-                                                <option value="Integer">Integer</option>
-                                                <option value="Float">Float</option>
-                                                <option value="Boolean">Boolean</option>
-                                            </CustomSelect>
+                                                status={parameterErrors[param.id]?.dataType ? 'error' : undefined}
+                                                options={[
+                                                    { label: 'String', value: 'String' },
+                                                    { label: 'Integer', value: 'Integer' },
+                                                    { label: 'Float', value: 'Float' },
+                                                    { label: 'Boolean', value: 'Boolean' }
+                                                ]}
+                                                filterOption={(input, option) =>
+                                                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                                }
+                                                popupMatchSelectWidth={false}
+                                                listHeight={256}
+                                            />
                                             {parameterErrors[param.id]?.dataType && (
                                                 <span className="text-red-500 text-xs mt-1 block">This field is required</span>
                                             )}
