@@ -13,6 +13,7 @@ interface ConditionalCardProps {
     onConfigUpdate?: (stepId: string, config: any) => void;
     onAddBranchStep?: (branch: 'true' | 'false') => void;
     onAddOutputToFalse?: () => void;
+    isViewMode?: boolean;
 }
 
 interface Condition {

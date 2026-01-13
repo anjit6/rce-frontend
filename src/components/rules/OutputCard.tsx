@@ -8,9 +8,10 @@ interface OutputCardProps {
     configurationSteps: ConfigurationStep[];
     stepIndex: number;
     onConfigUpdate: (stepId: string, config: any) => void;
+    isViewMode?: boolean;
 }
 
-export default function OutputCard({ step, inputParameters, configurationSteps, stepIndex, onConfigUpdate }: OutputCardProps) {
+export default function OutputCard({ step, inputParameters, configurationSteps, stepIndex, onConfigUpdate, isViewMode = false }: OutputCardProps) {
     const config = step.config || { type: '', dataType: '', value: '' };
 
     // Get output variables from all previous steps
@@ -92,6 +93,7 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
                             }
                             popupMatchSelectWidth={false}
                             listHeight={256}
+                            disabled={isViewMode}
                         />
                     </div>
 
@@ -113,6 +115,7 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
                                 { label: 'Boolean', value: 'Boolean' },
                                 { label: 'Date', value: 'Date' }
                             ]}
+                            disabled={isViewMode}
                         />
                     </div>
                 </div>

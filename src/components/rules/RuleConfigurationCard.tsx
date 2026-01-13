@@ -14,9 +14,10 @@ interface RuleConfigurationCardProps {
     onConfigUpdate?: (stepId: string, config: any) => void;
     onAddBranchStep?: (branch: 'true' | 'false') => void;
     onAddOutputToFalse?: () => void;
+    isViewMode?: boolean;
 }
 
-export default function RuleConfigurationCard({ step, inputParameters, stepIndex, configurationSteps = [], onConfigUpdate, onAddBranchStep, onAddOutputToFalse }: RuleConfigurationCardProps) {
+export default function RuleConfigurationCard({ step, inputParameters, stepIndex, configurationSteps = [], onConfigUpdate, onAddBranchStep, onAddOutputToFalse, isViewMode = false }: RuleConfigurationCardProps) {
     if (!step.type) return null;
 
     // Map category IDs to full names
@@ -132,6 +133,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                                         }
                                         popupMatchSelectWidth={false}
                                         listHeight={256}
+                                        disabled={isViewMode}
                                     />
                                     {paramConfig.type === 'Static Value' && (
                                         <div className="mt-2 space-y-2">
@@ -147,6 +149,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                                                     { label: 'Boolean', value: 'BOOLEAN' },
                                                     { label: 'Date', value: 'DATE' }
                                                 ]}
+                                                disabled={isViewMode}
                                             />
                                             <Input
                                                 value={paramConfig.value || ''}
@@ -154,6 +157,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                                                 placeholder="Enter static value"
                                                 className="w-full"
                                                 inputSize="lg"
+                                                disabled={isViewMode}
                                             />
                                         </div>
                                     )}
@@ -171,6 +175,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                                 onChange={(e) => handleOutputVariableChange(e.target.value)}
                                 className="w-64"
                                 inputSize="lg"
+                                disabled={isViewMode}
                             />
                         </div>
                     </div>
@@ -188,6 +193,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                     onConfigUpdate={onConfigUpdate}
                     onAddBranchStep={onAddBranchStep}
                     onAddOutputToFalse={onAddOutputToFalse}
+                    isViewMode={isViewMode}
                 />
             );
 
@@ -196,6 +202,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                 <OutputCard
                     step={step}
                     inputParameters={inputParameters}
+                    isViewMode={isViewMode}
                     configurationSteps={configurationSteps}
                     stepIndex={stepIndex}
                     onConfigUpdate={onConfigUpdate || (() => { })}
