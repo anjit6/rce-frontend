@@ -213,6 +213,7 @@ export default function RuleCreatePage() {
     };
 
     const [insertPosition, setInsertPosition] = useState<number>(-1);
+    const [activeBranchStep, setActiveBranchStep] = useState<{ stepId: string; branch: 'true' | 'false' } | null>(null);
 
     const handleFunctionSelect = (functionType: FunctionType, subfunctionId?: number) => {
         const newStep: ConfigurationStep = {
@@ -221,24 +222,84 @@ export default function RuleCreatePage() {
             subfunctionId: subfunctionId
         };
 
-        // Insert at the specified position or at the end
-        if (insertPosition >= 0 && insertPosition <= configurationSteps.length) {
-            const newSteps = [...configurationSteps];
-            newSteps.splice(insertPosition + 1, 0, newStep);
-            setConfigurationSteps(newSteps);
+        // Check if we're adding to a conditional branch
+        if (activeBranchStep) {
+            const updatedSteps = configurationSteps.map(step => {
+                if (step.id === activeBranchStep.stepId && step.type === 'conditional') {
+                    const branch = activeBranchStep.branch;
+                    const currentBranchSteps = step.config?.next?.[branch] || [];
+
+                    return {
+                        ...step,
+                        config: {
+                            ...step.config,
+                            activeBranch: branch,
+                            branchExpanded: true,
+                            next: {
+                                true: branch === 'true' ? [...currentBranchSteps, newStep] : (step.config?.next?.true || []),
+                                false: branch === 'false' ? [...currentBranchSteps, newStep] : (step.config?.next?.false || [])
+                            }
+                        }
+                    };
+                }
+                return step;
+            });
+
+            setConfigurationSteps(updatedSteps);
+            setActiveBranchStep(null);
         } else {
-            setConfigurationSteps([...configurationSteps, newStep]);
+            // Insert at the specified position or at the end
+            if (insertPosition >= 0 && insertPosition <= configurationSteps.length) {
+                const newSteps = [...configurationSteps];
+                newSteps.splice(insertPosition + 1, 0, newStep);
+                setConfigurationSteps(newSteps);
+            } else {
+                setConfigurationSteps([...configurationSteps, newStep]);
+            }
+            setInsertPosition(-1);
         }
 
         // Mark configuration as started only when a function is selected
         setConfigurationStarted(true);
         setIsConfigModalOpen(false);
-        setInsertPosition(-1);
     };
 
     const handleAddStep = (position: number) => {
         setInsertPosition(position);
         setIsConfigModalOpen(true);
+    };
+
+    const handleAddBranchStep = (stepId: string, branch: 'true' | 'false') => {
+        setActiveBranchStep({ stepId, branch });
+        setIsConfigModalOpen(true);
+    };
+
+    const handleAddOutputToFalseBranch = (stepId: string) => {
+        const updatedSteps = configurationSteps.map(step => {
+            if (step.id === stepId && step.type === 'conditional') {
+                // Create an output card
+                const newOutputStep: ConfigurationStep = {
+                    id: Date.now().toString(),
+                    type: 'output'
+                };
+
+                return {
+                    ...step,
+                    config: {
+                        ...step.config,
+                        activeBranch: 'false',
+                        branchExpanded: true,
+                        next: {
+                            true: step.config?.next?.true || [],
+                            false: [newOutputStep]
+                        }
+                    }
+                };
+            }
+            return step;
+        });
+
+        setConfigurationSteps(updatedSteps);
     };
 
     const handleConfigUpdate = (stepId: string, config: any) => {
@@ -803,15 +864,17 @@ export default function RuleCreatePage() {
                                         stepIndex={index}
                                         configurationSteps={configurationSteps}
                                         onConfigUpdate={handleConfigUpdate}
+                                        onAddBranchStep={(branch) => handleAddBranchStep(step.id, branch)}
+                                        onAddOutputToFalse={() => handleAddOutputToFalseBranch(step.id)}
                                     />
 
-                                    {/* Vertical connector line - Don't show after output card */}
-                                    {step.type !== 'output' && (
+                                    {/* Vertical connector line - Don't show after output card or conditional card */}
+                                    {step.type !== 'output' && step.type !== 'conditional' && (
                                         <div className="h-10 w-px bg-gray-300 mx-auto -mt-6"></div>
                                     )}
 
-                                    {/* Add Button - Only show for the last card if it's not an output card */}
-                                    {index === configurationSteps.length - 1 && step.type !== 'output' && (
+                                    {/* Add Button - Only show for the last card if it's not an output card or conditional card */}
+                                    {index === configurationSteps.length - 1 && step.type !== 'output' && step.type !== 'conditional' && (
                                         <div className="flex justify-center mb-8">
                                             <Button
                                                 type="primary"

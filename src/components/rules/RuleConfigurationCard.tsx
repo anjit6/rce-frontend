@@ -1,12 +1,10 @@
-import React from 'react';
-import { Tooltip, Select } from 'antd';
-import { InfoCircleOutlined } from '@ant-design/icons';
+import { Select } from 'antd';
 import { ConfigurationStep, InputParameter } from '../../types/rule-configuration';
 import { SUBFUNCTIONS } from '../../constants/subfunctions';
 import { Input } from '../ui/input';
-import { CustomSelect } from '../ui/custom-select';
 import { Label } from '../ui/label';
 import OutputCard from './OutputCard';
+import ConditionalCard from './ConditionalCard';
 
 interface RuleConfigurationCardProps {
     step: ConfigurationStep;
@@ -14,9 +12,11 @@ interface RuleConfigurationCardProps {
     stepIndex: number;
     configurationSteps?: ConfigurationStep[];
     onConfigUpdate?: (stepId: string, config: any) => void;
+    onAddBranchStep?: (branch: 'true' | 'false') => void;
+    onAddOutputToFalse?: () => void;
 }
 
-export default function RuleConfigurationCard({ step, inputParameters, stepIndex, configurationSteps = [], onConfigUpdate }: RuleConfigurationCardProps) {
+export default function RuleConfigurationCard({ step, inputParameters, stepIndex, configurationSteps = [], onConfigUpdate, onAddBranchStep, onAddOutputToFalse }: RuleConfigurationCardProps) {
     if (!step.type) return null;
 
     // Map category IDs to full names
@@ -178,242 +178,17 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
             );
         }
 
-        case 'find-replace':
-            return (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative">
-                    {/* Title Section with Category Badge */}
-                    <div className="mb-6">
-                        <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-lg font-semibold text-gray-900">Find & Replace</h3>
-                                <Tooltip title="Find and replace text in a string">
-                                    <InfoCircleOutlined className="text-gray-400 cursor-help" />
-                                </Tooltip>
-                            </div>
-                            <span className="px-3 py-1 text-sm font-medium text-blue-600 bg-blue-50 rounded">
-                                String Function
-                            </span>
-                        </div>
-                        <p className="text-sm text-gray-500">Replace all occurrences of a string with another string</p>
-                    </div>
-
-                    {/* Input Fields */}
-                    <div className="grid grid-cols-3 gap-4 mb-6">
-                        <div>
-                            <Label className="text-sm font-medium text-gray-700 mb-2 block">Input Parameter</Label>
-                            <CustomSelect selectSize="lg" className="w-full">
-                                <option value="" disabled selected>Select input parameter</option>
-                                {inputParameters.map(param => (
-                                    <option key={param.id} value={param.name}>{param.name}</option>
-                                ))}
-                                <option value="Static Text">Static Text</option>
-                            </CustomSelect>
-                        </div>
-                        <div>
-                            <Label className="text-sm font-medium text-gray-700 mb-2 block">Find</Label>
-                            <CustomSelect selectSize="lg" className="w-full">
-                                <option value="" disabled selected>Select find value</option>
-                            </CustomSelect>
-                        </div>
-                        <div>
-                            <Label className="text-sm font-medium text-gray-700 mb-2 block">Replace With</Label>
-                            <CustomSelect selectSize="lg" className="w-full">
-                                <option value="" disabled selected>Select replace value</option>
-                            </CustomSelect>
-                        </div>
-                    </div>
-
-                    {/* Output Variable */}
-                    <div className="border-t border-gray-200 pt-4">
-                        <div className="flex items-center justify-between">
-                            <Label className="text-sm font-medium text-gray-900">Output Variable</Label>
-                            <Input
-                                value={outputVariable}
-                                onChange={(e) => setOutputVariable(e.target.value)}
-                                className="w-64"
-                                inputSize="lg"
-                            />
-                        </div>
-                    </div>
-                </div>
-            );
-
-        case 'concatenate':
-            return (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative">
-                    {/* Title Section with Category Badge */}
-                    <div className="mb-6">
-                        <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-lg font-semibold text-gray-900">Concatenate</h3>
-                                <Tooltip title="Combine multiple strings together">
-                                    <InfoCircleOutlined className="text-gray-400 cursor-help" />
-                                </Tooltip>
-                            </div>
-                            <span className="px-3 py-1 text-sm font-medium text-blue-600 bg-blue-50 rounded">
-                                String Function
-                            </span>
-                        </div>
-                        <p className="text-sm text-gray-500">Combine multiple strings together</p>
-                    </div>
-
-                    {/* Input Fields */}
-                    <div className="grid grid-cols-3 gap-4 mb-6">
-                        <div>
-                            <Label className="text-sm font-medium text-gray-700 mb-2 block">Input Parameter 1</Label>
-                            <CustomSelect selectSize="lg" className="w-full">
-                                <option value="" disabled selected>Select input parameter</option>
-                            </CustomSelect>
-                        </div>
-                        <div>
-                            <Label className="text-sm font-medium text-gray-700 mb-2 block">Input Parameter 2</Label>
-                            <CustomSelect selectSize="lg" className="w-full">
-                                <option value="" disabled selected>Select input parameter</option>
-                            </CustomSelect>
-                        </div>
-                        <div>
-                            <Label className="text-sm font-medium text-gray-700 mb-2 block">Static Text</Label>
-                            <CustomSelect selectSize="lg" className="w-full">
-                                <option value="" disabled selected>Select static text</option>
-                            </CustomSelect>
-                        </div>
-                    </div>
-
-                    {/* Output Variable */}
-                    <div className="border-t border-gray-200 pt-4">
-                        <div className="flex items-center justify-between">
-                            <Label className="text-sm font-medium text-gray-900">Output Variable</Label>
-                            <Input
-                                value={outputVariable}
-                                onChange={(e) => setOutputVariable(e.target.value)}
-                                className="w-64"
-                                inputSize="lg"
-                            />
-                        </div>
-                    </div>
-                </div>
-            );
-
-        case 'date-format':
-            return (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative">
-                    {/* Title Section with Category Badge */}
-                    <div className="mb-6">
-                        <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-lg font-semibold text-gray-900">Date Format</h3>
-                                <Tooltip title="Format date values">
-                                    <InfoCircleOutlined className="text-gray-400 cursor-help" />
-                                </Tooltip>
-                            </div>
-                            <span className="px-3 py-1 text-sm font-medium text-blue-600 bg-blue-50 rounded">
-                                Date Function
-                            </span>
-                        </div>
-                        <p className="text-sm text-gray-500">Format date values</p>
-                    </div>
-
-                    {/* Input Fields */}
-                    <div className="grid grid-cols-2 gap-4 mb-6">
-                        <div>
-                            <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Date Input</Label>
-                            <CustomSelect selectSize="lg" className="w-full">
-                                <option value="" disabled selected>Select date input</option>
-                            </CustomSelect>
-                        </div>
-                        <div>
-                            <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Format</Label>
-                            <CustomSelect selectSize="lg" className="w-full">
-                                <option value="" disabled selected>DD/MM/YYYY</option>
-                            </CustomSelect>
-                        </div>
-                    </div>
-
-                    {/* Output Variable */}
-                    <div className="border-t border-gray-200 pt-4">
-                        <div className="flex items-center justify-between">
-                            <Label className="text-sm font-medium text-gray-900">Output Variable</Label>
-                            <Input
-                                value={outputVariable}
-                                onChange={(e) => setOutputVariable(e.target.value)}
-                                className="w-64"
-                                inputSize="lg"
-                            />
-                        </div>
-                    </div>
-                </div>
-            );
-
         case 'conditional':
             return (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative">
-                    {/* Title Section with Category Badge */}
-                    <div className="mb-6">
-                        <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-lg font-semibold text-gray-900">IF</h3>
-                                <Tooltip title="Conditional logic - execute different actions based on conditions">
-                                    <InfoCircleOutlined className="text-gray-400 cursor-help" />
-                                </Tooltip>
-                            </div>
-                            <span className="px-3 py-1 text-sm font-medium text-blue-600 bg-blue-50 rounded">
-                                Conditional
-                            </span>
-                        </div>
-                        <p className="text-sm text-gray-500">Conditional logic - execute different actions based on conditions</p>
-                    </div>
-
-                    {/* Condition Fields */}
-                    <div className="space-y-4 mb-6">
-                        <div className="grid grid-cols-3 gap-4">
-                            <div>
-                                <Label className="text-sm font-medium text-gray-700 mb-2 block">Variable</Label>
-                                <CustomSelect selectSize="lg" className="w-full">
-                                    <option value="" disabled selected>Select variable</option>
-                                </CustomSelect>
-                            </div>
-                            <div>
-                                <Label className="text-sm font-medium text-gray-700 mb-2 block">Operator</Label>
-                                <CustomSelect selectSize="lg" className="w-full">
-                                    <option value="" disabled selected>Equals</option>
-                                </CustomSelect>
-                            </div>
-                            <div>
-                                <Label className="text-sm font-medium text-gray-700 mb-2 block">Value</Label>
-                                <CustomSelect selectSize="lg" className="w-full">
-                                    <option value="" disabled selected>Select value</option>
-                                </CustomSelect>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label className="text-sm font-medium text-gray-700 mb-2 block">TRUE</Label>
-                                <CustomSelect selectSize="lg" className="w-full">
-                                    <option value="" disabled selected>Select</option>
-                                </CustomSelect>
-                            </div>
-                            <div>
-                                <Label className="text-sm font-medium text-gray-700 mb-2 block">FALSE</Label>
-                                <CustomSelect selectSize="lg" className="w-full">
-                                    <option value="" disabled selected>Select</option>
-                                </CustomSelect>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Output Variable */}
-                    <div className="border-t border-gray-200 pt-4">
-                        <div className="flex items-center justify-between">
-                            <Label className="text-sm font-medium text-gray-900">Output Variable</Label>
-                            <Input
-                                value={outputVariable}
-                                onChange={(e) => setOutputVariable(e.target.value)}
-                                className="w-64"
-                                inputSize="lg"
-                            />
-                        </div>
-                    </div>
-                </div>
+                <ConditionalCard
+                    step={step}
+                    inputParameters={inputParameters}
+                    configurationSteps={configurationSteps}
+                    stepIndex={stepIndex}
+                    onConfigUpdate={onConfigUpdate}
+                    onAddBranchStep={onAddBranchStep}
+                    onAddOutputToFalse={onAddOutputToFalse}
+                />
             );
 
         case 'output':
