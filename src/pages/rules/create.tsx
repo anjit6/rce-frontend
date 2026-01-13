@@ -35,6 +35,10 @@ export default function RuleCreatePage() {
     const [isCopied, setIsCopied] = useState(false);
     const [currentJson, setCurrentJson] = useState<any>(null);
     const [generatedJsCode, setGeneratedJsCode] = useState<string>('');
+    const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+    const [testInputs, setTestInputs] = useState<Record<string, any>>({});
+    const [testResult, setTestResult] = useState<any>(null);
+    const [isTestRunning, setIsTestRunning] = useState(false);
 
     useEffect(() => {
         if (ruleId) {
@@ -603,6 +607,56 @@ export default function RuleCreatePage() {
         });
     };
 
+    const handleTestRule = () => {
+        // Initialize test inputs with empty values
+        const initialInputs: Record<string, any> = {};
+        inputParameters.forEach(param => {
+            initialInputs[param.name] = '';
+        });
+        setTestInputs(initialInputs);
+        setTestResult(null);
+        setIsTestModalOpen(true);
+    };
+
+    const handleTestInputChange = (paramName: string, value: any) => {
+        setTestInputs(prev => ({
+            ...prev,
+            [paramName]: value
+        }));
+    };
+
+    const handleExecuteTest = async () => {
+        if (!generatedJsCode) {
+            Modal.error({
+                title: 'No Code Generated',
+                content: 'Please generate JavaScript code first by clicking the "Generate JavaScript" button.',
+                okText: 'OK',
+                centered: true
+            });
+            return;
+        }
+
+        setIsTestRunning(true);
+        setTestResult(null);
+
+        try {
+            // Create a function from the generated code
+            const functionCode = generatedJsCode + `\nreturn rule_${rule?.id};`;
+            const ruleFunction = new Function(functionCode)();
+
+            // Execute the function with test inputs
+            const result = await ruleFunction(testInputs);
+            setTestResult(result);
+        } catch (error: any) {
+            setTestResult({
+                success: false,
+                error: { message: error.message || 'An error occurred during execution' }
+            });
+        } finally {
+            setIsTestRunning(false);
+        }
+    };
+
     const handleViewJson = () => {
         // Generate current JSON from current state (not from saved)
         if (rule && configurationSteps.length > 0) {
@@ -911,7 +965,7 @@ export default function RuleCreatePage() {
                                     >
                                         Generate JavaScript
                                     </Button>
-                                    <Button size="large" className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500">Test</Button>
+                                    <Button size="large" className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500" onClick={handleTestRule}>Test</Button>
                                 </div>
                                 <Button size="large" className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500">Cancel</Button>
                             </div>
@@ -1111,6 +1165,60 @@ export default function RuleCreatePage() {
                             {generatedJsCode || '// No code generated yet. Please configure your rule and try again.'}
                         </code>
                     </pre>
+                </div>
+            </Modal>
+
+            {/* Test Rule Modal */}
+            <Modal
+                title={<span className="text-lg font-semibold">Test Rule</span>}
+                open={isTestModalOpen}
+                onCancel={() => {
+                    setIsTestModalOpen(false);
+                    setTestResult(null);
+                }}
+                footer={null}
+                width={600}
+                centered
+                closeIcon={<CloseOutlined style={{ fontSize: '16px' }} />}
+            >
+                <div className="mt-4">
+                    <h3 className="text-md font-semibold mb-4">Input Parameters</h3>
+                    {inputParameters.length === 0 ? (
+                        <p className="text-gray-500 text-sm mb-4">No input parameters defined for this rule.</p>
+                    ) : (
+                        inputParameters.map(param => (
+                            <div key={param.id} className="mb-4">
+                                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                                    {param.fieldName}
+                                </Label>
+                                <Input
+                                    value={testInputs[param.name] || ''}
+                                    onChange={(e) => handleTestInputChange(param.name, e.target.value)}
+                                    placeholder={`Enter ${param.fieldName}`}
+                                    size="large"
+                                />
+                            </div>
+                        ))
+                    )}
+
+                    <Button
+                        onClick={handleExecuteTest}
+                        loading={isTestRunning}
+                        className="w-full mt-4"
+                        type="primary"
+                        size="large"
+                    >
+                        Test JS
+                    </Button>
+
+                    {testResult && (
+                        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            <h4 className="text-sm font-semibold mb-2">Result:</h4>
+                            <pre className="text-sm overflow-auto max-h-64 bg-white p-3 rounded border border-gray-200">
+                                {JSON.stringify(testResult, null, 2)}
+                            </pre>
+                        </div>
+                    )}
                 </div>
             </Modal>
         </Layout>
