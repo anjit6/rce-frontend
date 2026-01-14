@@ -13,10 +13,10 @@ interface RuleConfigurationCardProps {
     configurationSteps?: ConfigurationStep[];
     onConfigUpdate?: (stepId: string, config: any) => void;
     onAddBranchStep?: (branch: 'true' | 'false') => void;
-    onAddOutputToFalse?: () => void;
+    handleAddBranchStep?: (stepId: string, branch: 'true' | 'false') => void;
 }
 
-export default function RuleConfigurationCard({ step, inputParameters, stepIndex, configurationSteps = [], onConfigUpdate, onAddBranchStep, onAddOutputToFalse }: RuleConfigurationCardProps) {
+export default function RuleConfigurationCard({ step, inputParameters, stepIndex, configurationSteps = [], onConfigUpdate, onAddBranchStep, handleAddBranchStep }: RuleConfigurationCardProps) {
     if (!step.type) return null;
 
     // Map category IDs to full names
@@ -79,7 +79,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
             };
 
             return (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative" style={{ maxWidth: '800px', margin: '0 auto' }}>
                     {/* Title Section with Category Badge */}
                     <div className="mb-6">
                         <div className="flex items-center justify-between mb-2">
@@ -187,7 +187,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                     stepIndex={stepIndex}
                     onConfigUpdate={onConfigUpdate}
                     onAddBranchStep={onAddBranchStep}
-                    onAddOutputToFalse={onAddOutputToFalse}
+                    handleAddBranchStep={handleAddBranchStep}
                 />
             );
 

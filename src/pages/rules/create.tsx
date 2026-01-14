@@ -228,27 +228,49 @@ export default function RuleCreatePage() {
 
         // Check if we're adding to a conditional branch
         if (activeBranchStep) {
-            const updatedSteps = configurationSteps.map(step => {
-                if (step.id === activeBranchStep.stepId && step.type === 'conditional') {
-                    const branch = activeBranchStep.branch;
-                    const currentBranchSteps = step.config?.next?.[branch] || [];
+            // Helper function to recursively find and update a conditional step
+            const updateConditionalStep = (steps: ConfigurationStep[]): ConfigurationStep[] => {
+                return steps.map(step => {
+                    if (step.id === activeBranchStep.stepId && step.type === 'conditional') {
+                        const branch = activeBranchStep.branch;
+                        const currentBranchSteps = step.config?.next?.[branch] || [];
 
-                    return {
-                        ...step,
-                        config: {
-                            ...step.config,
-                            activeBranch: branch,
-                            branchExpanded: true,
-                            next: {
-                                true: branch === 'true' ? [...currentBranchSteps, newStep] : (step.config?.next?.true || []),
-                                false: branch === 'false' ? [...currentBranchSteps, newStep] : (step.config?.next?.false || [])
+                        return {
+                            ...step,
+                            config: {
+                                ...step.config,
+                                activeBranch: branch,
+                                branchExpanded: true,
+                                next: {
+                                    true: branch === 'true' ? [...currentBranchSteps, newStep] : (step.config?.next?.true || []),
+                                    false: branch === 'false' ? [...currentBranchSteps, newStep] : (step.config?.next?.false || [])
+                                }
                             }
-                        }
-                    };
-                }
-                return step;
-            });
+                        };
+                    } else if (step.type === 'conditional' && step.config?.next) {
+                        // Recursively search in this conditional's branches
+                        const updatedTrueSteps = updateConditionalStep(step.config.next.true || []);
+                        const updatedFalseSteps = updateConditionalStep(step.config.next.false || []);
 
+                        // Only update if something changed
+                        if (updatedTrueSteps !== step.config.next.true || updatedFalseSteps !== step.config.next.false) {
+                            return {
+                                ...step,
+                                config: {
+                                    ...step.config,
+                                    next: {
+                                        true: updatedTrueSteps,
+                                        false: updatedFalseSteps
+                                    }
+                                }
+                            };
+                        }
+                    }
+                    return step;
+                });
+            };
+
+            const updatedSteps = updateConditionalStep(configurationSteps);
             setConfigurationSteps(updatedSteps);
             setActiveBranchStep(null);
         } else {
@@ -276,34 +298,6 @@ export default function RuleCreatePage() {
     const handleAddBranchStep = (stepId: string, branch: 'true' | 'false') => {
         setActiveBranchStep({ stepId, branch });
         setIsConfigModalOpen(true);
-    };
-
-    const handleAddOutputToFalseBranch = (stepId: string) => {
-        const updatedSteps = configurationSteps.map(step => {
-            if (step.id === stepId && step.type === 'conditional') {
-                // Create an output card
-                const newOutputStep: ConfigurationStep = {
-                    id: Date.now().toString(),
-                    type: 'output'
-                };
-
-                return {
-                    ...step,
-                    config: {
-                        ...step.config,
-                        activeBranch: 'false',
-                        branchExpanded: true,
-                        next: {
-                            true: step.config?.next?.true || [],
-                            false: [newOutputStep]
-                        }
-                    }
-                };
-            }
-            return step;
-        });
-
-        setConfigurationSteps(updatedSteps);
     };
 
     const handleConfigUpdate = (stepId: string, config: any) => {
@@ -761,8 +755,11 @@ export default function RuleCreatePage() {
                         </Tooltip>
                     </div>
 
-                    {/* Define Input Parameters */}
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 pb-8 mb-6">
+                    {/* Scrollable Container for entire rule tree */}
+                    <div className="overflow-x-auto pb-4">
+                        <div className="min-w-fit flex flex-col items-center">
+                            {/* Define Input Parameters */}
+                            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 pb-8 mb-6 w-full" style={{ maxWidth: '1100px' }}>
                         <div className="flex items-start justify-between mb-1">
                             <div>
                                 <h2 className="text-lg font-semibold text-gray-900 mb-1">Define Input Parameters</h2>
@@ -891,7 +888,7 @@ export default function RuleCreatePage() {
                     </div>
 
                     {/* Start Configuration */}
-                    <div className="flex flex-col items-center py-5">
+                    <div className="flex flex-col items-center py-5 w-full" style={{ maxWidth: '1200px' }}>
                         <p className="text-base font-semibold text-gray-900 mb-4">Start Configuration</p>
                         <Button
                             type="primary"
@@ -910,8 +907,15 @@ export default function RuleCreatePage() {
                             {/* Vertical Line connecting Start to first Card */}
                             <div className="h-8 w-px bg-gray-300 mx-auto -mt-8"></div>
 
-                            {configurationSteps.map((step, index) => (
-                                <div key={step.id}>
+                            {configurationSteps.map((step, index) => {
+                                // Check if there's a conditional card in the steps
+                                const hasConditional = configurationSteps.some(s => s.type === 'conditional');
+                                // Add padding if this is not a conditional card and there is a conditional somewhere
+                                const shouldAddPadding = hasConditional && step.type !== 'conditional';
+
+                                return (
+                                <div key={step.id} className="w-full flex justify-center" style={step.type === 'conditional' ? { minWidth: '1600px' } : {}}>
+                                    <div className="w-full" style={step.type !== 'conditional' ? { maxWidth: '800px' } : {}}>
                                     <RuleConfigurationCard
                                         step={step}
                                         inputParameters={inputParameters}
@@ -919,7 +923,7 @@ export default function RuleCreatePage() {
                                         configurationSteps={configurationSteps}
                                         onConfigUpdate={handleConfigUpdate}
                                         onAddBranchStep={(branch) => handleAddBranchStep(step.id, branch)}
-                                        onAddOutputToFalse={() => handleAddOutputToFalseBranch(step.id)}
+                                        handleAddBranchStep={handleAddBranchStep}
                                     />
 
                                     {/* Vertical connector line - Don't show after output card or conditional card */}
@@ -944,8 +948,10 @@ export default function RuleCreatePage() {
                                     {index < configurationSteps.length - 1 && (
                                         <div className="h-10 w-px bg-gray-300 mx-auto -mt-8"></div>
                                     )}
+                                    </div>
                                 </div>
-                            ))}
+                                );
+                            })}
 
                             {/* Action Buttons */}
                             <div className="flex justify-between items-center py-6">
@@ -971,6 +977,8 @@ export default function RuleCreatePage() {
                             </div>
                         </>
                     )}
+                        </div>
+                    </div>
                 </div>
             </div>
 
