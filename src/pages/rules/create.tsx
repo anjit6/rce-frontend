@@ -20,6 +20,7 @@ export default function RuleCreatePage() {
     const { ruleId } = useParams<{ ruleId: string }>();
     const navigate = useNavigate();
     const [rule, setRule] = useState<any>(null);
+    const [isViewMode, setIsViewMode] = useState(false); // Default to edit mode
     const [configurationStarted, setConfigurationStarted] = useState(false);
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
     const [configurationSteps, setConfigurationSteps] = useState<ConfigurationStep[]>([]);
@@ -31,14 +32,17 @@ export default function RuleCreatePage() {
     const [parameterErrors, setParameterErrors] = useState<Record<string, { type?: boolean; fieldName?: boolean; dataType?: boolean }>>({});
     const [parametersLocked, setParametersLocked] = useState(false);
     const [isJsonModalOpen, setIsJsonModalOpen] = useState(false);
-    const [isJsModalOpen, setIsJsModalOpen] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
     const [currentJson, setCurrentJson] = useState<any>(null);
     const [generatedJsCode, setGeneratedJsCode] = useState<string>('');
-    const [isTestModalOpen, setIsTestModalOpen] = useState(false);
     const [testInputs, setTestInputs] = useState<Record<string, any>>({});
     const [testResult, setTestResult] = useState<any>(null);
     const [isTestRunning, setIsTestRunning] = useState(false);
+    const [rightPanelOpen, setRightPanelOpen] = useState(false);
+    const [rightPanelContent, setRightPanelContent] = useState<'js' | 'test' | null>(null);
+    const [isClosing, setIsClosing] = useState(false);
+    const [savedRuleFunction, setSavedRuleFunction] = useState<any>(null);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
     useEffect(() => {
         if (ruleId) {
@@ -67,13 +71,31 @@ export default function RuleCreatePage() {
                         console.log("✅ Configuration steps restored:", savedConfig.configurationSteps.length, "steps");
                     }
 
+                    // Store the saved ruleFunction (including the generated code)
+                    if (savedConfig.ruleFunction) {
+                        setSavedRuleFunction(savedConfig.ruleFunction);
+                        if (savedConfig.ruleFunction.code) {
+                            setGeneratedJsCode(savedConfig.ruleFunction.code);
+                            console.log("✅ Generated JavaScript code loaded from saved configuration");
+                        }
+                    }
+
+                    // Set to view mode when configuration exists (viewing existing rule)
+                    setIsViewMode(true);
+                    setHasUnsavedChanges(false);
+
                     console.log("✅ Configuration loaded successfully!");
                 } else {
                     console.log("ℹ️ No saved configuration found for rule:", ruleId);
+                    // No saved config means we're creating/editing a new rule - stay in edit mode
+                    setIsViewMode(false);
                 }
             } else {
                 navigate('/rules');
             }
+        } else {
+            // No ruleId means creating a brand new rule - edit mode
+            setIsViewMode(false);
         }
     }, [ruleId, navigate]);
 
@@ -287,6 +309,7 @@ export default function RuleCreatePage() {
 
         // Mark configuration as started only when a function is selected
         setConfigurationStarted(true);
+        setHasUnsavedChanges(true); // Mark as changed when adding a step
         setIsConfigModalOpen(false);
     };
 
@@ -304,13 +327,14 @@ export default function RuleCreatePage() {
         setConfigurationSteps(configurationSteps.map(step =>
             step.id === stepId ? { ...step, config } : step
         ));
+        setHasUnsavedChanges(true); // Mark as changed
     };
 
     const handleSave = () => {
         // Generate the ruleFunction JSON structure
         const ruleFunction = {
             id: Date.now(), // Generate unique ID
-            code: "", // Will be generated later
+            code: "", // Will be generated below
             returnType: "string", // Default, can be determined from output step
             ruleId: rule?.id || "",
             inputParams: inputParameters.map((param, index) => ({
@@ -339,17 +363,17 @@ export default function RuleCreatePage() {
                             dataValue = paramConfig.value || '';
                         } else if (paramConfig.type?.startsWith('Input Parameter')) {
                             dataType = 'inputParam';
-                            // Find the matching input parameter and use its ID
+                            // Find the matching input parameter and use its fieldName for compilation
                             const matchedParam = inputParameters.find(p => p.name === paramConfig.type);
-                            dataValue = matchedParam?.id || '';
+                            dataValue = matchedParam?.fieldName || '';
                         } else {
                             dataType = 'stepOutputVariable';
-                            // For step output variables, the value would be the step ID
-                            dataValue = paramConfig.value || '';
+                            // For step output variables, the value would be the variable name
+                            dataValue = paramConfig.type || '';
                         }
 
                         return {
-                            subFuncParamId: paramIdx + 1,
+                            subFuncParamId: String(paramIdx + 1),
                             data: {
                                 type: dataType,
                                 value: dataValue
@@ -363,7 +387,7 @@ export default function RuleCreatePage() {
                         outputVariableName: config.outputVariable || `step_${index + 1}_output_variable`,
                         returnType: subfunc?.returnType?.toLowerCase() || "string",
                         subFunction: {
-                            id: step.subfunctionId,
+                            id: subfunc?.functionName || String(step.subfunctionId),
                             inputParams
                         },
                         next: nextStep
@@ -383,33 +407,24 @@ export default function RuleCreatePage() {
                 } else if (step.type === 'output') {
                     const outputConfig = step.config || {};
                     let outputValue = '';
-                    let outputVariableName = '';
+                    let outputType = outputConfig.type || '';
 
                     if (outputConfig.type === 'stepOutputVariable') {
-                        // Use the previous step's ID
-                        if (index > 0) {
-                            outputValue = configurationSteps[index - 1].id;
-                            // Get the output variable name from previous step
-                            const prevStepConfig = configurationSteps[index - 1].config;
-                            outputVariableName = prevStepConfig?.outputVariable || `step_${index}_output_variable`;
-                        }
+                        outputValue = outputConfig.value || '';
                     } else if (outputConfig.type === 'inputParam') {
-                        // Find the matching input parameter and use its ID
                         const matchedParam = inputParameters.find(p => p.name === outputConfig.value);
-                        outputValue = matchedParam?.id || '';
-                        outputVariableName = matchedParam?.fieldName || '';
+                        outputValue = matchedParam?.fieldName || '';
                     } else if (outputConfig.type === 'static') {
                         outputValue = outputConfig.value || '';
-                        outputVariableName = 'static_output';
                     }
 
                     return {
                         id: stepId,
                         type: "output",
-                        outputVariableName: outputVariableName,
+                        outputVariableName: null,
                         returnType: outputConfig.dataType?.toLowerCase() || "any",
                         data: {
-                            type: outputConfig.type || "",
+                            type: outputType,
                             dataType: outputConfig.dataType?.toLowerCase() || "",
                             value: outputValue
                         },
@@ -420,6 +435,31 @@ export default function RuleCreatePage() {
                 return null;
             }).filter(Boolean)
         };
+
+        // Generate JavaScript code from the rule function
+        // Only regenerate if there were changes or no code exists
+        if (hasUnsavedChanges || !generatedJsCode) {
+            console.log("🔄 Regenerating JavaScript code due to changes");
+            try {
+                const compiledCode = compileRule(ruleFunction as any);
+                ruleFunction.code = compiledCode;
+                setGeneratedJsCode(compiledCode);
+                console.log("✅ JavaScript code generated successfully");
+            } catch (error) {
+                console.error('Failed to compile rule during save:', error);
+                Modal.error({
+                    title: 'Code Generation Failed',
+                    content: 'Failed to generate JavaScript code. Please check your rule configuration.',
+                    okText: 'OK',
+                    centered: true
+                });
+                return; // Stop save process if compilation fails
+            }
+        } else {
+            // Use existing code if no changes were made
+            console.log("✅ Using existing JavaScript code (no changes detected)");
+            ruleFunction.code = generatedJsCode;
+        }
 
         // Create the configuration object to save
         const configToSave = {
@@ -457,6 +497,10 @@ export default function RuleCreatePage() {
             console.log("=".repeat(80));
             console.log("📍 Stored in localStorage under key: 'rce_rule_configurations'");
             console.log("=".repeat(80));
+
+            // Reset unsaved changes flag after successful save
+            setHasUnsavedChanges(false);
+            setSavedRuleFunction(ruleFunction);
 
             // Show success confirmation modal
             Modal.confirm({
@@ -577,7 +621,8 @@ export default function RuleCreatePage() {
             try {
                 const compiledCode = compileRule(ruleFunction as any);
                 setGeneratedJsCode(compiledCode);
-                setIsJsModalOpen(true);
+                setRightPanelContent('js');
+                setRightPanelOpen(true);
             } catch (error) {
                 console.error('Failed to compile rule:', error);
                 Modal.error({
@@ -588,7 +633,12 @@ export default function RuleCreatePage() {
                 });
             }
         } else {
-            alert("No configuration steps found. Please add some steps first.");
+            Modal.warning({
+                title: 'No Configuration',
+                content: 'No configuration steps found. Please add some steps first.',
+                okText: 'OK',
+                centered: true
+            });
         }
     };
 
@@ -602,14 +652,146 @@ export default function RuleCreatePage() {
     };
 
     const handleTestRule = () => {
-        // Initialize test inputs with empty values
-        const initialInputs: Record<string, any> = {};
-        inputParameters.forEach(param => {
-            initialInputs[param.name] = '';
-        });
-        setTestInputs(initialInputs);
-        setTestResult(null);
-        setIsTestModalOpen(true);
+        if (rule && configurationSteps.length > 0) {
+            // Check if we already have generated code and no unsaved changes
+            if (generatedJsCode && !hasUnsavedChanges) {
+                console.log("✅ Using existing generated code for testing");
+
+                // Initialize test inputs with empty values
+                const initialInputs: Record<string, any> = {};
+                inputParameters.forEach(param => {
+                    initialInputs[param.fieldName] = '';
+                });
+                setTestInputs(initialInputs);
+                setTestResult(null);
+                setRightPanelContent('test');
+                setRightPanelOpen(true);
+                return;
+            }
+
+            // Generate JavaScript code if not available or changes were made
+            console.log("🔄 Generating new JavaScript code for testing");
+            const ruleFunction = {
+                id: Date.now(),
+                code: "",
+                returnType: "string",
+                ruleId: rule.id,
+                inputParams: inputParameters.map((param, index) => ({
+                    id: parseInt(param.id),
+                    sequence: index + 1,
+                    name: param.fieldName,
+                    dataType: param.dataType?.toLowerCase() || "string",
+                    paramType: "inputField",
+                    mandatory: "true",
+                    default: "",
+                    description: ""
+                })),
+                steps: configurationSteps.map((step, index) => {
+                    const stepId = step.id;
+                    const nextStep = index < configurationSteps.length - 1 ? configurationSteps[index + 1].id : null;
+
+                    if (step.type === 'subfunction') {
+                        const subfunc = SUBFUNCTIONS.find(f => f.id === step.subfunctionId);
+                        const config = step.config || {};
+                        const inputParams = (config.params || []).map((paramConfig: any, paramIdx: number) => {
+                            let dataValue = '';
+                            let dataType = '';
+
+                            if (paramConfig.type === 'Static Value') {
+                                dataType = 'static';
+                                dataValue = paramConfig.value || '';
+                            } else if (paramConfig.type?.startsWith('Input Parameter')) {
+                                dataType = 'inputParam';
+                                const matchedParam = inputParameters.find(p => p.name === paramConfig.type);
+                                dataValue = matchedParam?.fieldName || '';
+                            } else {
+                                dataType = 'stepOutputVariable';
+                                dataValue = paramConfig.type || '';
+                            }
+
+                            return {
+                                subFuncParamId: String(paramIdx + 1),
+                                data: {
+                                    type: dataType,
+                                    value: dataValue
+                                }
+                            };
+                        });
+
+                        return {
+                            id: stepId,
+                            type: "subFunction",
+                            outputVariableName: config.outputVariable || `step_${index + 1}_output_variable`,
+                            returnType: subfunc?.returnType?.toLowerCase() || "string",
+                            subFunction: {
+                                id: subfunc?.functionName || String(step.subfunctionId),
+                                inputParams
+                            },
+                            next: nextStep
+                        };
+                    } else if (step.type === 'output') {
+                        const outputConfig = step.config || {};
+                        let outputValue = '';
+                        let outputType = outputConfig.type || '';
+
+                        if (outputConfig.type === 'stepOutputVariable') {
+                            outputValue = outputConfig.value || '';
+                        } else if (outputConfig.type === 'inputParam') {
+                            const matchedParam = inputParameters.find(p => p.name === outputConfig.value);
+                            outputValue = matchedParam?.fieldName || '';
+                        } else if (outputConfig.type === 'static') {
+                            outputValue = outputConfig.value || '';
+                        }
+
+                        return {
+                            id: stepId,
+                            type: "output",
+                            outputVariableName: null,
+                            returnType: outputConfig.dataType?.toLowerCase() || "any",
+                            data: {
+                                type: outputType,
+                                dataType: outputConfig.dataType?.toLowerCase() || "",
+                                value: outputValue
+                            },
+                            next: null
+                        };
+                    }
+
+                    return null;
+                }).filter(Boolean)
+            };
+
+            // Compile the rule to JavaScript
+            try {
+                const compiledCode = compileRule(ruleFunction as any);
+                setGeneratedJsCode(compiledCode);
+
+                // Initialize test inputs with empty values
+                const initialInputs: Record<string, any> = {};
+                inputParameters.forEach(param => {
+                    initialInputs[param.fieldName] = '';
+                });
+                setTestInputs(initialInputs);
+                setTestResult(null);
+                setRightPanelContent('test');
+                setRightPanelOpen(true);
+            } catch (error) {
+                console.error('Failed to compile rule:', error);
+                Modal.error({
+                    title: 'Compilation Failed',
+                    content: 'Failed to generate JavaScript code. Please check your rule configuration before testing.',
+                    okText: 'OK',
+                    centered: true
+                });
+            }
+        } else {
+            Modal.warning({
+                title: 'No Configuration',
+                content: 'No configuration steps found. Please add some steps first before testing.',
+                okText: 'OK',
+                centered: true
+            });
+        }
     };
 
     const handleTestInputChange = (paramName: string, value: any) => {
@@ -634,8 +816,16 @@ export default function RuleCreatePage() {
         setTestResult(null);
 
         try {
-            // Create a function from the generated code
-            const functionCode = generatedJsCode + `\nreturn rule_${rule?.id};`;
+            // Extract the function name from the generated code
+            const functionNameMatch = generatedJsCode.match(/async function (\w+)\(/);
+            const functionName = functionNameMatch ? functionNameMatch[1] : null;
+
+            if (!functionName) {
+                throw new Error('Could not extract function name from generated code');
+            }
+
+            // Create a function from the generated code and return the function reference
+            const functionCode = generatedJsCode + `\nreturn ${functionName};`;
             const ruleFunction = new Function(functionCode)();
 
             // Execute the function with test inputs
@@ -717,6 +907,49 @@ export default function RuleCreatePage() {
         }
     };
 
+    const handleClearRule = () => {
+        confirm({
+            title: 'Clear Rule',
+            icon: <ExclamationCircleOutlined className="text-red-600" />,
+            content: 'Are you sure you want to clear all input parameters and configuration steps?',
+            okText: 'Yes, Clear',
+            okType: 'danger',
+            cancelText: 'Cancel',
+            centered: true,
+            onOk() {
+                // Reset all state
+                setInputParameters([
+                    { id: '1', name: 'Input Parameter 1', fieldName: '', type: 'Input field', dataType: 'String' }
+                ]);
+                setConfigurationSteps([]);
+                setConfigurationStarted(false);
+                setParametersLocked(false);
+                setParameterErrors({});
+                setGeneratedJsCode('');
+                setTestInputs({});
+                setTestResult(null);
+                setRightPanelOpen(false);
+                setRightPanelContent(null);
+            },
+            onCancel() {
+                // Do nothing
+            },
+        });
+    };
+
+    const handleCloseRightPanel = () => {
+        setIsClosing(true);
+        setTimeout(() => {
+            setRightPanelOpen(false);
+            setIsClosing(false);
+            setIsCopied(false);
+        }, 300); // Match animation duration
+    };
+
+    const handleEditRule = () => {
+        setIsViewMode(false);
+    };
+
     if (!rule) {
         return (
             <Layout>
@@ -745,14 +978,70 @@ export default function RuleCreatePage() {
             <div className="min-h-screen bg-gray-50">
                 {/* Main Content Area */}
                 <div className="px-8 py-6 max-w-full">
-                    {/* Rule Title and Description */}
-                    <div className="mb-6 max-w-full overflow-hidden">
-                        <Tooltip title={rule.name}>
-                            <h1 className="text-xl font-bold text-gray-900 truncate cursor-pointer">{rule.name}</h1>
-                        </Tooltip>
-                        <Tooltip title={rule.description}>
-                            <p className="text-sm text-gray-500 mt-1 line-clamp-2 cursor-pointer">{rule.description}</p>
-                        </Tooltip>
+                    {/* Rule Title and Action Buttons */}
+                    <div className="mb-6 max-w-full overflow-hidden flex justify-between items-start">
+                        <div className="flex-1 min-w-0">
+                            <Tooltip title={rule.name}>
+                                <h1 className="text-xl font-bold text-gray-900 truncate cursor-pointer">{rule.name}</h1>
+                            </Tooltip>
+                            <Tooltip title={rule.description}>
+                                <p className="text-sm text-gray-500 mt-1 line-clamp-2 cursor-pointer">{rule.description}</p>
+                            </Tooltip>
+                        </div>
+
+                        {/* Action Buttons - Top Right */}
+                        <div className="flex gap-3 ml-6 flex-shrink-0">
+                            {isViewMode ? (
+                                <>
+                                    <Button
+                                        size="large"
+                                        type="primary"
+                                        onClick={handleEditRule}
+                                        className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none"
+                                    >
+                                        Edit Rule
+                                    </Button>
+                                    <Button
+                                        size="large"
+                                        onClick={handleGenerateJavaScript}
+                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                    >
+                                        Show JS Code
+                                    </Button>
+                                    <Button
+                                        size="large"
+                                        onClick={handleTestRule}
+                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                    >
+                                        Test Rule
+                                    </Button>
+                                </>
+                            ) : (
+                                <>
+                                    <Button
+                                        size="large"
+                                        onClick={handleClearRule}
+                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                    >
+                                        Clear Rule
+                                    </Button>
+                                    <Button
+                                        size="large"
+                                        onClick={handleGenerateJavaScript}
+                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                    >
+                                        Generate JS Code
+                                    </Button>
+                                    <Button
+                                        size="large"
+                                        onClick={handleTestRule}
+                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                    >
+                                        Test Rule
+                                    </Button>
+                                </>
+                            )}
+                        </div>
                     </div>
 
                     {/* Scrollable Container for entire rule tree */}
@@ -762,24 +1051,52 @@ export default function RuleCreatePage() {
                             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 pb-8 mb-6 w-full" style={{ maxWidth: '1100px' }}>
                         <div className="flex items-start justify-between mb-1">
                             <div>
-                                <h2 className="text-lg font-semibold text-gray-900 mb-1">Define Input Parameters</h2>
+                                <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                                    {isViewMode ? 'Input Parameters' : 'Define Input Parameters'}
+                                </h2>
                                 <p className="text-sm text-gray-600">
                                     {inputParameters.length} parameter{inputParameters.length !== 1 ? 's' : ''} defined
                                 </p>
                             </div>
-                            <Button
-                                icon={<PlusOutlined />}
-                                type="primary"
-                                size="middle"
-                                onClick={addInputParameter}
-                                disabled={parametersLocked}
-                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none rounded-lg px-6 disabled:bg-gray-300 disabled:text-gray-500"
-                            >
-                                Add Parameter
-                            </Button>
+                            {!isViewMode && (
+                                <Button
+                                    icon={<PlusOutlined />}
+                                    type="primary"
+                                    size="middle"
+                                    onClick={addInputParameter}
+                                    disabled={parametersLocked}
+                                    className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none rounded-lg px-6 disabled:bg-gray-300 disabled:text-gray-500"
+                                >
+                                    Add Parameter
+                                </Button>
+                            )}
                         </div>
 
-                        <div className="space-y-4 max-h-[400px] overflow-y-auto mt-6 px-1 pb-1">
+                        {isViewMode ? (
+                            /* Table View for View Mode */
+                            <div className="mt-6 overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50 border-b border-gray-200">
+                                        <tr>
+                                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Type</th>
+                                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Field Name</th>
+                                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Data Type</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                        {inputParameters.map((param) => (
+                                            <tr key={param.id} className="hover:bg-gray-50">
+                                                <td className="px-4 py-3 text-sm text-gray-900">{param.type}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-900">{param.fieldName}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-900">{param.dataType}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            /* Editable Form View for Edit Mode */
+                            <div className="space-y-4 max-h-[400px] overflow-y-auto mt-6 px-1 pb-1">
                             {inputParameters.map((param, index) => (
                                 <div key={param.id}>
                                     <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-6 items-start">
@@ -885,27 +1202,30 @@ export default function RuleCreatePage() {
                                 </div>
                             ))}
                         </div>
+                        )}
                     </div>
 
                     {/* Start Configuration */}
-                    <div className="flex flex-col items-center py-5 w-full" style={{ maxWidth: '1200px' }}>
-                        <p className="text-base font-semibold text-gray-900 mb-4">Start Configuration</p>
-                        <Button
-                            type="primary"
-                            size="large"
-                            onClick={handleStartConfiguration}
-                            disabled={configurationStarted || configurationSteps.length > 0}
-                            className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none rounded-lg px-8 disabled:bg-gray-300 disabled:text-gray-500"
-                        >
-                            Start
-                        </Button>
-                    </div>
+                    {!isViewMode && (
+                        <div className="flex flex-col items-center py-5">
+                            <p className="text-base font-semibold text-gray-900 mb-4">Start Configuration</p>
+                            <Button
+                                type="primary"
+                                size="large"
+                                onClick={handleStartConfiguration}
+                                disabled={configurationStarted || configurationSteps.length > 0}
+                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none rounded-lg px-8 disabled:bg-gray-300 disabled:text-gray-500"
+                            >
+                                Start
+                            </Button>
+                        </div>
+                    )}
 
                     {/* Configuration Steps */}
                     {configurationSteps.length > 0 && (
                         <>
                             {/* Vertical Line connecting Start to first Card */}
-                            <div className="h-8 w-px bg-gray-300 mx-auto -mt-8"></div>
+                            {!isViewMode && <div className="h-8 w-px bg-gray-300 mx-auto -mt-8"></div>}
 
                             {configurationSteps.map((step, index) => {
                                 // Check if there's a conditional card in the steps
@@ -924,6 +1244,7 @@ export default function RuleCreatePage() {
                                         onConfigUpdate={handleConfigUpdate}
                                         onAddBranchStep={(branch) => handleAddBranchStep(step.id, branch)}
                                         handleAddBranchStep={handleAddBranchStep}
+                                        isViewMode={isViewMode}
                                     />
 
                                     {/* Vertical connector line - Don't show after output card or conditional card */}
@@ -932,7 +1253,7 @@ export default function RuleCreatePage() {
                                     )}
 
                                     {/* Add Button - Only show for the last card if it's not an output card or conditional card */}
-                                    {index === configurationSteps.length - 1 && step.type !== 'output' && step.type !== 'conditional' && (
+                                    {!isViewMode && index === configurationSteps.length - 1 && step.type !== 'output' && step.type !== 'conditional' && (
                                         <div className="flex justify-center mb-8">
                                             <Button
                                                 type="primary"
@@ -954,8 +1275,15 @@ export default function RuleCreatePage() {
                             })}
 
                             {/* Action Buttons */}
-                            <div className="flex justify-between items-center py-6">
-                                <div className="flex gap-3">
+                            {!isViewMode && (
+                                <div className="flex justify-end items-center py-6 gap-3">
+                                    <Button
+                                        size="large"
+                                        onClick={() => navigate('/rules')}
+                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                    >
+                                        Cancel
+                                    </Button>
                                     <Button
                                         type="primary"
                                         size="large"
@@ -964,17 +1292,8 @@ export default function RuleCreatePage() {
                                     >
                                         Save
                                     </Button>
-                                    <Button
-                                        size="large"
-                                        onClick={handleGenerateJavaScript}
-                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                                    >
-                                        Generate JavaScript
-                                    </Button>
-                                    <Button size="large" className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500" onClick={handleTestRule}>Test</Button>
                                 </div>
-                                <Button size="large" className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500">Cancel</Button>
-                            </div>
+                            )}
                         </>
                     )}
                         </div>
@@ -1143,92 +1462,103 @@ export default function RuleCreatePage() {
                 </div>
             </Modal>
 
-            {/* Generated JavaScript Code Modal */}
-            <Modal
-                title={<span className="text-lg font-semibold">Generated JavaScript Code</span>}
-                open={isJsModalOpen}
-                onCancel={() => {
-                    setIsJsModalOpen(false);
-                    setIsCopied(false);
-                }}
-                footer={null}
-                width={800}
-                centered
-                closeIcon={<CloseOutlined style={{ fontSize: '16px' }} />}
-            >
-                <div className="mt-4 relative">
-                    <Button
-                        onClick={handleCopyJavaScript}
-                        className="absolute top-2 right-2 z-10 bg-white hover:bg-gray-50 border border-gray-200 rounded-md p-2 flex items-center justify-center"
-                        style={{ width: '32px', height: '32px', boxShadow: 'none' }}
-                    >
-                        {isCopied ? (
-                            <CheckOutlined className="text-gray-500 text-base" />
-                        ) : (
-                            <CopyOutlined className="text-gray-500 text-base" />
-                        )}
-                    </Button>
-                    <pre className="bg-gray-50 p-4 rounded-lg overflow-auto max-h-96 text-sm pr-16">
-                        <code className="text-gray-800">
-                            {generatedJsCode || '// No code generated yet. Please configure your rule and try again.'}
-                        </code>
-                    </pre>
-                </div>
-            </Modal>
+            {/* Right Panel */}
+            {rightPanelOpen && (
+                <div
+                    className="fixed top-0 right-0 h-full bg-white shadow-2xl z-50 overflow-y-auto border-l border-gray-200"
+                    style={{
+                        width: '600px',
+                        animation: isClosing ? 'slideOutToRight 0.3s ease-in' : 'slideInFromRight 0.3s ease-out',
+                    }}
+                >
+                    {/* Panel Header */}
+                    <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center z-10">
+                        <h2 className="text-lg font-semibold text-gray-900">
+                            {rightPanelContent === 'js' ? 'Generated JavaScript Code' : 'Test Rule'}
+                        </h2>
+                        <Button
+                            type="text"
+                            icon={<CloseOutlined />}
+                            onClick={handleCloseRightPanel}
+                            className="hover:bg-gray-100"
+                        />
+                    </div>
 
-            {/* Test Rule Modal */}
-            <Modal
-                title={<span className="text-lg font-semibold">Test Rule</span>}
-                open={isTestModalOpen}
-                onCancel={() => {
-                    setIsTestModalOpen(false);
-                    setTestResult(null);
-                }}
-                footer={null}
-                width={600}
-                centered
-                closeIcon={<CloseOutlined style={{ fontSize: '16px' }} />}
-            >
-                <div className="mt-4">
-                    <h3 className="text-md font-semibold mb-4">Input Parameters</h3>
-                    {inputParameters.length === 0 ? (
-                        <p className="text-gray-500 text-sm mb-4">No input parameters defined for this rule.</p>
-                    ) : (
-                        inputParameters.map(param => (
-                            <div key={param.id} className="mb-4">
-                                <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                    {param.fieldName}
-                                </Label>
-                                <Input
-                                    value={testInputs[param.name] || ''}
-                                    onChange={(e) => handleTestInputChange(param.name, e.target.value)}
-                                    placeholder={`Enter ${param.fieldName}`}
-                                    size="large"
-                                />
+                    {/* Panel Content */}
+                    <div className="p-6">
+                        {rightPanelContent === 'js' && (
+                            <div className="relative">
+                                <Button
+                                    onClick={handleCopyJavaScript}
+                                    className="absolute top-2 right-2 z-10 bg-white hover:bg-gray-50 border border-gray-200 rounded-md p-2 flex items-center justify-center"
+                                    style={{ width: '32px', height: '32px', boxShadow: 'none' }}
+                                >
+                                    {isCopied ? (
+                                        <CheckOutlined className="text-gray-500 text-base" />
+                                    ) : (
+                                        <CopyOutlined className="text-gray-500 text-base" />
+                                    )}
+                                </Button>
+                                <pre className="bg-gray-50 p-4 rounded-lg overflow-auto text-sm pr-16" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+                                    <code className="text-gray-800">
+                                        {generatedJsCode || '// No code generated yet. Please configure your rule and try again.'}
+                                    </code>
+                                </pre>
                             </div>
-                        ))
-                    )}
+                        )}
 
-                    <Button
-                        onClick={handleExecuteTest}
-                        loading={isTestRunning}
-                        className="w-full mt-4"
-                        type="primary"
-                        size="large"
-                    >
-                        Test JS
-                    </Button>
+                        {rightPanelContent === 'test' && (
+                            <div>
+                                <h3 className="text-md font-semibold mb-4">Input Parameters</h3>
+                                {inputParameters.length === 0 ? (
+                                    <p className="text-gray-500 text-sm mb-4">No input parameters defined for this rule.</p>
+                                ) : (
+                                    inputParameters.map(param => (
+                                        <div key={param.id} className="mb-4">
+                                            <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                                                {param.fieldName || param.name}
+                                            </Label>
+                                            <Input
+                                                value={testInputs[param.fieldName] || ''}
+                                                onChange={(e) => handleTestInputChange(param.fieldName, e.target.value)}
+                                                placeholder={`Enter ${param.fieldName || param.name}`}
+                                                inputSize="lg"
+                                            />
+                                        </div>
+                                    ))
+                                )}
 
-                    {testResult && (
-                        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                            <h4 className="text-sm font-semibold mb-2">Result:</h4>
-                            <pre className="text-sm overflow-auto max-h-64 bg-white p-3 rounded border border-gray-200">
-                                {JSON.stringify(testResult, null, 2)}
-                            </pre>
-                        </div>
-                    )}
+                                <Button
+                                    onClick={handleExecuteTest}
+                                    loading={isTestRunning}
+                                    className="w-full mt-4 bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none"
+                                    type="primary"
+                                    size="large"
+                                >
+                                    Execute Test
+                                </Button>
+
+                                {testResult && (
+                                    <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                        <h4 className="text-sm font-semibold mb-2">Result:</h4>
+                                        <pre className="text-sm overflow-auto bg-white p-3 rounded border border-gray-200" style={{ maxHeight: '400px' }}>
+                                            {JSON.stringify(testResult, null, 2)}
+                                        </pre>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </Modal>
+            )}
+
+            {/* Backdrop overlay when right panel is open */}
+            {rightPanelOpen && (
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-20 z-40"
+                    onClick={handleCloseRightPanel}
+                />
+            )}
         </Layout>
     );
 }

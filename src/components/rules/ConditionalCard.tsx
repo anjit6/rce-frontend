@@ -13,6 +13,7 @@ interface ConditionalCardProps {
     onConfigUpdate?: (stepId: string, config: any) => void;
     onAddBranchStep?: (branch: 'true' | 'false') => void;
     handleAddBranchStep?: (stepId: string, branch: 'true' | 'false') => void;
+    isViewMode?: boolean;
 }
 
 interface Condition {
@@ -39,7 +40,8 @@ export default function ConditionalCard({
     configurationSteps = [],
     onConfigUpdate,
     onAddBranchStep,
-    handleAddBranchStep
+    handleAddBranchStep,
+    isViewMode = false
 }: ConditionalCardProps) {
     const config = step.config || {
         conditions: [{
@@ -260,6 +262,7 @@ export default function ConditionalCard({
                                         }
                                         popupMatchSelectWidth={false}
                                         listHeight={256}
+                                        disabled={isViewMode}
                                     />
                                     {condition.lhs.type === 'Static Value' && (
                                         <>
@@ -270,6 +273,7 @@ export default function ConditionalCard({
                                                 className="w-full"
                                                 size="large"
                                                 options={dataTypeOptions}
+                                                disabled={isViewMode}
                                             />
                                             <Input
                                                 type={condition.lhs.dataType === 'Date' ? 'date' : (condition.lhs.dataType === 'Integer' || condition.lhs.dataType === 'Float') ? 'number' : 'text'}
@@ -278,6 +282,7 @@ export default function ConditionalCard({
                                                 placeholder="Enter value"
                                                 className="w-full"
                                                 inputSize="lg"
+                                                disabled={isViewMode}
                                             />
                                         </>
                                     )}
@@ -298,6 +303,7 @@ export default function ConditionalCard({
                                         }
                                         popupMatchSelectWidth={false}
                                         listHeight={256}
+                                        disabled={isViewMode}
                                     />
                                 </div>
 
@@ -323,6 +329,7 @@ export default function ConditionalCard({
                                         }
                                         popupMatchSelectWidth={false}
                                         listHeight={256}
+                                        disabled={isViewMode}
                                     />
                                     {condition.rhs.type === 'Static Value' && (
                                         <>
@@ -333,6 +340,7 @@ export default function ConditionalCard({
                                                 className="w-full"
                                                 size="large"
                                                 options={dataTypeOptions}
+                                                disabled={isViewMode}
                                             />
                                             <Input
                                                 type={condition.rhs.dataType === 'Date' ? 'date' : (condition.rhs.dataType === 'Integer' || condition.rhs.dataType === 'Float') ? 'number' : 'text'}
@@ -341,6 +349,7 @@ export default function ConditionalCard({
                                                 placeholder="Enter value"
                                                 className="w-full"
                                                 inputSize="lg"
+                                                disabled={isViewMode}
                                             />
                                         </>
                                     )}
@@ -348,7 +357,7 @@ export default function ConditionalCard({
 
                                 {/* Delete Button */}
                                 <div className="flex items-center justify-end">
-                                    {conditions.length > 1 && (
+                                    {conditions.length > 1 && !isViewMode && (
                                         <Button
                                             icon={<CloseOutlined />}
                                             onClick={() => removeCondition(index)}
@@ -362,23 +371,25 @@ export default function ConditionalCard({
                     ))}
 
                     {/* Add Condition Button */}
-                    <div className="flex justify-center">
-                        <Popover
-                            content={conditionTypeContent}
-                            trigger="click"
-                            open={popoverVisible === 0}
-                            onOpenChange={(visible) => setPopoverVisible(visible ? 0 : null)}
-                            placement="bottom"
-                        >
-                            <Button
-                                icon={<PlusOutlined />}
-                                size="large"
-                                className="px-6"
+                    {!isViewMode && (
+                        <div className="flex justify-center">
+                            <Popover
+                                content={conditionTypeContent}
+                                trigger="click"
+                                open={popoverVisible === 0}
+                                onOpenChange={(visible) => setPopoverVisible(visible ? 0 : null)}
+                                placement="bottom"
                             >
-                                Add Condition
-                            </Button>
-                        </Popover>
-                    </div>
+                                <Button
+                                    icon={<PlusOutlined />}
+                                    size="large"
+                                    className="px-6"
+                                >
+                                    Add Condition
+                                </Button>
+                            </Popover>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -496,6 +507,7 @@ export default function ConditionalCard({
                                                                 ? (branch) => handleAddBranchStep(trueStep.id, branch)
                                                                 : onAddBranchStep
                                                         }
+                                                        isViewMode={isViewMode}
                                                     />
                                                     {index < trueSteps.length - 1 && (
                                                         <div className="h-8 w-px bg-gray-300 mx-auto"></div>
@@ -509,7 +521,7 @@ export default function ConditionalCard({
                                                 <div className="h-8 w-px bg-gray-300 mx-auto"></div>
                                             )}
 
-                                            {(trueSteps.length === 0 || (trueSteps[trueSteps.length - 1].type !== 'output' && trueSteps[trueSteps.length - 1].type !== 'conditional')) && (
+                                            {!isViewMode && (trueSteps.length === 0 || (trueSteps[trueSteps.length - 1].type !== 'output' && trueSteps[trueSteps.length - 1].type !== 'conditional')) && (
                                                 <div className="text-center">
                                                     <Button
                                                         type="primary"
@@ -586,6 +598,7 @@ export default function ConditionalCard({
                                                                 ? (branch) => handleAddBranchStep(falseStep.id, branch)
                                                                 : onAddBranchStep
                                                         }
+                                                        isViewMode={isViewMode}
                                                     />
                                                 </div>
                                                 );
@@ -596,7 +609,7 @@ export default function ConditionalCard({
                                                 <div className="h-8 w-px bg-gray-300 mx-auto"></div>
                                             )}
 
-                                            {(falseSteps.length === 0 || (falseSteps[falseSteps.length - 1].type !== 'output' && falseSteps[falseSteps.length - 1].type !== 'conditional')) && (
+                                            {!isViewMode && (falseSteps.length === 0 || (falseSteps[falseSteps.length - 1].type !== 'output' && falseSteps[falseSteps.length - 1].type !== 'conditional')) && (
                                                 <div className="text-center">
                                                     <Button
                                                         type="primary"
