@@ -10,9 +10,12 @@ interface OutputCardProps {
     stepIndex: number;
     onConfigUpdate: (stepId: string, config: any) => void;
     isViewMode?: boolean;
+    // Step number display props
+    stepNumber?: number; // Main step number (e.g., 2 in "Step 2")
+    conditionStepNumber?: number; // Sub-step number within condition branch (e.g., 1 in "Step 2 (1)")
 }
 
-export default function OutputCard({ step, inputParameters, configurationSteps, stepIndex, onConfigUpdate, isViewMode = false }: OutputCardProps) {
+export default function OutputCard({ step, inputParameters, configurationSteps, stepIndex, onConfigUpdate, isViewMode = false, stepNumber, conditionStepNumber }: OutputCardProps) {
     const config = step.config || { type: '', dataType: '', value: '', staticValue: ''  };
 
     // Get output variables from all previous steps
@@ -68,10 +71,21 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
         });
     };
 
+    // Generate step number display text
+    const displayStepNumber = stepNumber !== undefined ? stepNumber : stepIndex + 1;
+    const stepNumberText = conditionStepNumber !== undefined
+        ? `Step ${displayStepNumber} (${conditionStepNumber})`
+        : `Step ${displayStepNumber}`;
+
     return (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative" style={{ maxWidth: '800px', margin: '0 auto' }}>
+            {/* Step Number Badge - Top Right Corner */}
+            <div className="absolute top-3 right-3 px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded">
+                {stepNumberText}
+            </div>
+
             {/* Title Section - Similar to Define Input Parameters */}
-            <div className="flex items-start justify-between mb-1">
+            <div className="flex items-start justify-between mb-1 pr-24">
                 <div>
                     <h2 className="text-lg font-semibold text-gray-900 mb-1">Return</h2>
                     <p className="text-sm text-gray-600">Define the final output of the rule</p>

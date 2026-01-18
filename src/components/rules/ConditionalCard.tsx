@@ -14,6 +14,11 @@ interface ConditionalCardProps {
     onAddBranchStep?: (branch: 'true' | 'false') => void;
     handleAddBranchStep?: (stepId: string, branch: 'true' | 'false') => void;
     isViewMode?: boolean;
+    // Step number display props
+    stepNumber?: number; // Main step number (e.g., 2 in "Step 2")
+    conditionStepNumber?: number; // Sub-step number within condition branch (e.g., 1 in "Step 2 (1)")
+    // All configuration steps for validation (includes all steps, not just preceding ones)
+    allConfigurationSteps?: ConfigurationStep[];
 }
 
 interface Condition {
@@ -41,7 +46,10 @@ export default function ConditionalCard({
     onConfigUpdate,
     onAddBranchStep,
     handleAddBranchStep,
-    isViewMode = false
+    isViewMode = false,
+    stepNumber,
+    conditionStepNumber,
+    allConfigurationSteps
 }: ConditionalCardProps) {
     const defaultCondition = {
         id: '1',
@@ -242,12 +250,23 @@ export default function ConditionalCard({
         </div>
     );
 
+    // Generate step number display text for this conditional card
+    const displayStepNumber = stepNumber !== undefined ? stepNumber : stepIndex + 1;
+    const stepNumberText = conditionStepNumber !== undefined
+        ? `Step ${displayStepNumber} (${conditionStepNumber})`
+        : `Step ${displayStepNumber}`;
+
     return (
         <>
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative overflow-visible" style={{ maxWidth: '800px', margin: '0 auto' }}>
+                {/* Step Number Badge - Top Right Corner */}
+                <div className="absolute top-3 right-3 px-3 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded">
+                    {stepNumberText}
+                </div>
+
                 {/* Title Section */}
                 <div className="mb-6">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-2 pr-24">
                         <h3 className="text-lg font-semibold text-gray-900">Conditional If</h3>
                         <span className="px-3 py-1 text-sm font-medium text-purple-600 bg-purple-50 rounded">
                             Conditional
@@ -486,6 +505,9 @@ export default function ConditionalCard({
                                                         inputParameters={inputParameters}
                                                         stepIndex={combinedSteps.length}
                                                         configurationSteps={combinedSteps}
+                                                        stepNumber={displayStepNumber}
+                                                        conditionStepNumber={index + 1}
+                                                        allConfigurationSteps={allConfigurationSteps}
                                                         onConfigUpdate={(stepId: string, stepConfig: any) => {
                                                             // Update the step in TRUE branch - need to recursively update
                                                             const updateStepRecursively = (steps: ConfigurationStep[]): ConfigurationStep[] => {
@@ -582,6 +604,9 @@ export default function ConditionalCard({
                                                         inputParameters={inputParameters}
                                                         stepIndex={combinedSteps.length}
                                                         configurationSteps={combinedSteps}
+                                                        stepNumber={displayStepNumber}
+                                                        conditionStepNumber={index + 1}
+                                                        allConfigurationSteps={allConfigurationSteps}
                                                         onConfigUpdate={(stepId: string, stepConfig: any) => {
                                                             // Update the step in FALSE branch - need to recursively update
                                                             const updateStepRecursively = (steps: ConfigurationStep[]): ConfigurationStep[] => {

@@ -16,6 +16,98 @@ import { compileRule } from '../../utils/ruleCompiler';
 const { Panel } = Collapse;
 const { confirm } = Modal;
 
+// Utility function to find all usages of an input parameter in configuration steps
+const findInputParamUsages = (
+    paramName: string,
+    steps: ConfigurationStep[]
+): { stepId: string; location: string }[] => {
+    const usages: { stepId: string; location: string }[] = [];
+
+    const searchInSteps = (stepsToSearch: ConfigurationStep[], pathPrefix: string = '') => {
+        stepsToSearch.forEach((step, index) => {
+            const stepPath = pathPrefix ? `${pathPrefix} > Step ${index + 1}` : `Step ${index + 1}`;
+
+            if (step.type === 'subfunction' && step.config?.params) {
+                step.config.params.forEach((param: any, paramIdx: number) => {
+                    if (param.type === paramName) {
+                        usages.push({ stepId: step.id, location: `${stepPath} (Parameter ${paramIdx + 1})` });
+                    }
+                });
+            } else if (step.type === 'conditional' && step.config?.conditions) {
+                step.config.conditions.forEach((condition: any, condIdx: number) => {
+                    if (condition.lhs?.type === paramName) {
+                        usages.push({ stepId: step.id, location: `${stepPath} (Condition ${condIdx + 1} LHS)` });
+                    }
+                    if (condition.rhs?.type === paramName) {
+                        usages.push({ stepId: step.id, location: `${stepPath} (Condition ${condIdx + 1} RHS)` });
+                    }
+                });
+                // Search in true/false branches
+                if (step.config.next?.true) {
+                    searchInSteps(step.config.next.true, `${stepPath} > TRUE`);
+                }
+                if (step.config.next?.false) {
+                    searchInSteps(step.config.next.false, `${stepPath} > FALSE`);
+                }
+            } else if (step.type === 'output' && step.config?.value === paramName) {
+                usages.push({ stepId: step.id, location: `${stepPath} (Output)` });
+            }
+        });
+    };
+
+    searchInSteps(steps);
+    return usages;
+};
+
+// Utility function to update all references to an input parameter name in steps
+const updateParamReferencesInSteps = (
+    oldParamName: string,
+    newParamName: string,
+    steps: ConfigurationStep[]
+): ConfigurationStep[] => {
+    return steps.map(step => {
+        if (step.type === 'subfunction' && step.config?.params) {
+            const updatedParams = step.config.params.map((param: any) => {
+                if (param.type === oldParamName) {
+                    return { ...param, type: newParamName };
+                }
+                return param;
+            });
+            return { ...step, config: { ...step.config, params: updatedParams } };
+        } else if (step.type === 'conditional') {
+            let updatedConfig = { ...step.config };
+
+            // Update conditions
+            if (step.config?.conditions) {
+                const updatedConditions = step.config.conditions.map((condition: any) => {
+                    let updated = { ...condition };
+                    if (condition.lhs?.type === oldParamName) {
+                        updated.lhs = { ...condition.lhs, type: newParamName, value: newParamName };
+                    }
+                    if (condition.rhs?.type === oldParamName) {
+                        updated.rhs = { ...condition.rhs, type: newParamName, value: newParamName };
+                    }
+                    return updated;
+                });
+                updatedConfig.conditions = updatedConditions;
+            }
+
+            // Update nested branches
+            if (step.config?.next) {
+                updatedConfig.next = {
+                    true: step.config.next.true ? updateParamReferencesInSteps(oldParamName, newParamName, step.config.next.true) : [],
+                    false: step.config.next.false ? updateParamReferencesInSteps(oldParamName, newParamName, step.config.next.false) : []
+                };
+            }
+
+            return { ...step, config: updatedConfig };
+        } else if (step.type === 'output' && step.config?.value === oldParamName) {
+            return { ...step, config: { ...step.config, value: newParamName } };
+        }
+        return step;
+    });
+};
+
 export default function RuleCreatePage() {
     const { ruleId } = useParams<{ ruleId: string }>();
     const navigate = useNavigate();
@@ -29,8 +121,7 @@ export default function RuleCreatePage() {
     ]);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeAccordionKeys, setActiveAccordionKeys] = useState<string[]>([]);
-    const [parameterErrors, setParameterErrors] = useState<Record<string, { type?: boolean; fieldName?: boolean; dataType?: boolean }>>({});
-    const [parametersLocked, setParametersLocked] = useState(false);
+    const [parameterErrors, setParameterErrors] = useState<Record<string, { type?: boolean; fieldName?: boolean; dataType?: boolean; duplicate?: boolean }>>({});
     const [isJsonModalOpen, setIsJsonModalOpen] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
     const [currentJson, setCurrentJson] = useState<any>(null);
@@ -61,7 +152,6 @@ export default function RuleCreatePage() {
                     // Restore input parameters
                     if (savedConfig.inputParameters && savedConfig.inputParameters.length > 0) {
                         setInputParameters(savedConfig.inputParameters);
-                        setParametersLocked(true);
                         console.log("✅ Input parameters restored:", savedConfig.inputParameters.length, "parameters");
                     }
 
@@ -151,15 +241,58 @@ export default function RuleCreatePage() {
         };
         const updatedParams = renumberParameters([...inputParameters, newParam]);
         setInputParameters(updatedParams);
+        setHasUnsavedChanges(true);
     };
 
     const updateInputParameter = (id: string, field: 'fieldName' | 'type' | 'dataType', value: string) => {
-        setInputParameters(inputParameters.map(param =>
+        // Update the parameter
+        const updatedParams = inputParameters.map(param =>
             param.id === id ? { ...param, [field]: value } : param
-        ));
+        );
+        setInputParameters(updatedParams);
 
-        // Clear error when user types
-        if (parameterErrors[id]?.[field]) {
+        // Check for duplicate field names if updating fieldName
+        if (field === 'fieldName' && value.trim()) {
+            const duplicateIds = updatedParams
+                .filter(p => p.fieldName.trim().toLowerCase() === value.trim().toLowerCase())
+                .map(p => p.id);
+
+            if (duplicateIds.length > 1) {
+                // Mark all duplicates with error
+                setParameterErrors(prev => {
+                    const newErrors = { ...prev };
+                    duplicateIds.forEach(dupId => {
+                        newErrors[dupId] = { ...newErrors[dupId], duplicate: true };
+                    });
+                    return newErrors;
+                });
+            } else {
+                // Clear duplicate errors for all params with this field name
+                setParameterErrors(prev => {
+                    const newErrors = { ...prev };
+                    // Clear duplicate flag for current param
+                    if (newErrors[id]) {
+                        newErrors[id] = { ...newErrors[id], duplicate: false };
+                    }
+                    // Also clear duplicate flag for any other param that was previously marked
+                    Object.keys(newErrors).forEach(paramId => {
+                        if (newErrors[paramId]?.duplicate) {
+                            const param = updatedParams.find(p => p.id === paramId);
+                            const hasDuplicates = updatedParams.filter(
+                                p => p.id !== paramId && p.fieldName.trim().toLowerCase() === param?.fieldName.trim().toLowerCase()
+                            ).length > 0;
+                            if (!hasDuplicates) {
+                                newErrors[paramId] = { ...newErrors[paramId], duplicate: false };
+                            }
+                        }
+                    });
+                    return newErrors;
+                });
+            }
+        }
+
+        // Clear error when user types (for non-duplicate errors)
+        if (parameterErrors[id]?.[field] && field !== 'fieldName') {
             setParameterErrors(prev => ({
                 ...prev,
                 [id]: {
@@ -167,16 +300,102 @@ export default function RuleCreatePage() {
                     [field]: false
                 }
             }));
+        } else if (field === 'fieldName' && parameterErrors[id]?.fieldName) {
+            // Clear the required field error when user types in fieldName
+            setParameterErrors(prev => ({
+                ...prev,
+                [id]: {
+                    ...prev[id],
+                    fieldName: false
+                }
+            }));
+        }
+
+        // Mark as having unsaved changes
+        setHasUnsavedChanges(true);
+    };
+
+    // Handle data type change with validation
+    const handleDataTypeChange = (id: string, _oldDataType: string, newDataType: string) => {
+        const param = inputParameters.find(p => p.id === id);
+        if (!param) return;
+
+        // Check if this parameter is used in any steps
+        const usages = findInputParamUsages(param.name, configurationSteps);
+
+        if (usages.length > 0) {
+            // Show warning about data type change
+            confirm({
+                title: 'Change Data Type',
+                icon: <ExclamationCircleOutlined className="text-yellow-600" />,
+                content: (
+                    <div>
+                        <p className="mb-2">This parameter is used in the following locations:</p>
+                        <ul className="list-disc pl-4 mb-2">
+                            {usages.slice(0, 5).map((usage, idx) => (
+                                <li key={idx} className="text-sm text-gray-600">{usage.location}</li>
+                            ))}
+                            {usages.length > 5 && (
+                                <li className="text-sm text-gray-600">...and {usages.length - 5} more</li>
+                            )}
+                        </ul>
+                        <p className="text-yellow-600 font-medium">Changing the data type may cause validation errors. Please verify and update the affected steps if needed.</p>
+                    </div>
+                ),
+                okText: 'Change Anyway',
+                okType: 'primary',
+                cancelText: 'Cancel',
+                centered: true,
+                onOk() {
+                    updateInputParameter(id, 'dataType', newDataType);
+                },
+                onCancel() {
+                    // Do nothing
+                },
+            });
+        } else {
+            // No usages, just update directly
+            updateInputParameter(id, 'dataType', newDataType);
         }
     };
 
     const removeInputParameter = (id: string) => {
         // Prevent removing if only one parameter left
-        if (inputParameters.length > 1) {
+        if (inputParameters.length <= 1) return;
+
+        const param = inputParameters.find(p => p.id === id);
+        if (!param) return;
+
+        // Check if this parameter is used in any configuration steps
+        const usages = findInputParamUsages(param.name, configurationSteps);
+
+        if (usages.length > 0) {
+            // Parameter is in use - show error and list locations
+            Modal.error({
+                title: 'Cannot Remove Parameter',
+                content: (
+                    <div>
+                        <p className="mb-2">This parameter is currently being used in the following locations:</p>
+                        <ul className="list-disc pl-4 mb-2">
+                            {usages.slice(0, 5).map((usage, idx) => (
+                                <li key={idx} className="text-sm text-gray-600">{usage.location}</li>
+                            ))}
+                            {usages.length > 5 && (
+                                <li className="text-sm text-gray-600">...and {usages.length - 5} more</li>
+                            )}
+                        </ul>
+                        <p className="text-red-600 font-medium">Please remove or modify these steps before deleting this parameter.</p>
+                    </div>
+                ),
+                okText: 'OK',
+                centered: true
+            });
+        } else {
+            // Parameter not in use - confirm deletion
             confirm({
                 title: 'Remove Input Parameter',
                 icon: <ExclamationCircleOutlined className="text-red-600" />,
-                content: 'Are you sure you want to remove this Parameter?',
+                content: 'Are you sure you want to remove this parameter?',
                 okText: 'Yes, Remove',
                 okType: 'danger',
                 cancelText: 'Cancel',
@@ -184,7 +403,20 @@ export default function RuleCreatePage() {
                 onOk() {
                     const filteredParams = inputParameters.filter(param => param.id !== id);
                     const renumberedParams = renumberParameters(filteredParams);
+
+                    // Update references in steps when renumbering
+                    let updatedSteps = configurationSteps;
+                    filteredParams.forEach((p, index) => {
+                        const oldName = p.name;
+                        const newName = `Input Parameter ${index + 1}`;
+                        if (oldName !== newName) {
+                            updatedSteps = updateParamReferencesInSteps(oldName, newName, updatedSteps);
+                        }
+                    });
+
                     setInputParameters(renumberedParams);
+                    setConfigurationSteps(updatedSteps);
+                    setHasUnsavedChanges(true);
                 },
                 onCancel() {
                     // Do nothing on cancel
@@ -195,15 +427,33 @@ export default function RuleCreatePage() {
 
     const handleStartConfiguration = () => {
         // Validate input parameters
-        const newErrors: Record<string, { type?: boolean; fieldName?: boolean; dataType?: boolean }> = {};
+        const newErrors: Record<string, { type?: boolean; fieldName?: boolean; dataType?: boolean; duplicate?: boolean }> = {};
         let hasErrors = false;
 
+        // Check for duplicate field names
+        const fieldNameCounts: Record<string, string[]> = {};
         inputParameters.forEach(param => {
-            const paramErrors: { type?: boolean; fieldName?: boolean; dataType?: boolean } = {};
+            const normalizedName = param.fieldName.trim().toLowerCase();
+            if (normalizedName) {
+                if (!fieldNameCounts[normalizedName]) {
+                    fieldNameCounts[normalizedName] = [];
+                }
+                fieldNameCounts[normalizedName].push(param.id);
+            }
+        });
+
+        inputParameters.forEach(param => {
+            const paramErrors: { type?: boolean; fieldName?: boolean; dataType?: boolean; duplicate?: boolean } = {};
 
             if (!param.type) paramErrors.type = true;
             if (!param.fieldName.trim()) paramErrors.fieldName = true;
             if (!param.dataType) paramErrors.dataType = true;
+
+            // Check for duplicates
+            const normalizedName = param.fieldName.trim().toLowerCase();
+            if (normalizedName && fieldNameCounts[normalizedName]?.length > 1) {
+                paramErrors.duplicate = true;
+            }
 
             if (Object.keys(paramErrors).length > 0) {
                 newErrors[param.id] = paramErrors;
@@ -216,23 +466,8 @@ export default function RuleCreatePage() {
             return;
         }
 
-        // Show confirmation dialog
-        confirm({
-            title: 'Start Configuration',
-            icon: <ExclamationCircleOutlined className="text-red-600" />,
-            content: 'Are you sure you want to start configuration? Once confirmed, input parameters will be locked and cannot be modified.',
-            okText: 'Yes, Start',
-            okType: 'danger',
-            cancelText: 'No',
-            centered: true,
-            onOk() {
-                setParametersLocked(true);
-                setIsConfigModalOpen(true);
-            },
-            onCancel() {
-                // Do nothing, keep parameters editable
-            },
-        });
+        // Directly open the config modal without locking parameters
+        setIsConfigModalOpen(true);
     };
 
     const handleCloseConfigModal = () => {
@@ -954,7 +1189,6 @@ export default function RuleCreatePage() {
                 ]);
                 setConfigurationSteps([]);
                 setConfigurationStarted(false);
-                setParametersLocked(false);
                 setParameterErrors({});
                 setGeneratedJsCode('');
                 setTestInputs({});
@@ -1095,8 +1329,7 @@ export default function RuleCreatePage() {
                                     type="primary"
                                     size="middle"
                                     onClick={addInputParameter}
-                                    disabled={parametersLocked}
-                                    className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none rounded-lg px-6 disabled:bg-gray-300 disabled:text-gray-500"
+                                    className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none rounded-lg px-6"
                                 >
                                     Add Parameter
                                 </Button>
@@ -1141,7 +1374,6 @@ export default function RuleCreatePage() {
                                                 placeholder="Select type"
                                                 className="w-full"
                                                 size="large"
-                                                disabled={parametersLocked}
                                                 status={parameterErrors[param.id]?.type ? 'error' : undefined}
                                                 options={[
                                                     { label: 'Input field', value: 'Input field' },
@@ -1176,11 +1408,13 @@ export default function RuleCreatePage() {
                                                 }
                                                 className="w-full"
                                                 inputSize="lg"
-                                                variant={parameterErrors[param.id]?.fieldName ? 'error' : 'default'}
-                                                disabled={parametersLocked}
+                                                variant={(parameterErrors[param.id]?.fieldName || parameterErrors[param.id]?.duplicate) ? 'error' : 'default'}
                                             />
                                             {parameterErrors[param.id]?.fieldName && (
                                                 <span className="text-red-500 text-xs mt-1 block">This field is required</span>
+                                            )}
+                                            {parameterErrors[param.id]?.duplicate && !parameterErrors[param.id]?.fieldName && (
+                                                <span className="text-red-500 text-xs mt-1 block">Field name must be unique</span>
                                             )}
                                         </div>
 
@@ -1190,11 +1424,10 @@ export default function RuleCreatePage() {
                                             <Select
                                                 showSearch
                                                 value={param.dataType || 'String'}
-                                                onChange={(value) => updateInputParameter(param.id, 'dataType', value)}
+                                                onChange={(value) => handleDataTypeChange(param.id, param.dataType || 'String', value)}
                                                 placeholder="Select data type"
                                                 className="w-full"
                                                 size="large"
-                                                disabled={parametersLocked}
                                                 status={parameterErrors[param.id]?.dataType ? 'error' : undefined}
                                                 options={[
                                                     { label: 'String', value: 'String' },
@@ -1215,7 +1448,7 @@ export default function RuleCreatePage() {
 
                                         {/* Delete Button Column */}
                                         <div className="flex items-start justify-end pt-8">
-                                            {inputParameters.length > 1 && !parametersLocked && (
+                                            {inputParameters.length > 1 && (
                                                 <Button
                                                     icon={<CloseOutlined />}
                                                     onClick={() => removeInputParameter(param.id)}
@@ -1276,6 +1509,8 @@ export default function RuleCreatePage() {
                                         onAddBranchStep={(branch) => handleAddBranchStep(step.id, branch)}
                                         handleAddBranchStep={handleAddBranchStep}
                                         isViewMode={isViewMode}
+                                        stepNumber={index + 1}
+                                        allConfigurationSteps={configurationSteps}
                                     />
 
                                     {/* Vertical connector line - Don't show after output card or conditional card */}

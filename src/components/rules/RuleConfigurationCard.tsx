@@ -6,6 +6,26 @@ import { Label } from '../ui/label';
 import OutputCard from './OutputCard';
 import ConditionalCard from './ConditionalCard';
 
+// Helper function to collect all output variable names from steps (including nested conditionals)
+const collectAllOutputVariables = (steps: ConfigurationStep[], excludeStepId?: string): string[] => {
+    const variables: string[] = [];
+
+    const collectFromSteps = (stepsToSearch: ConfigurationStep[]) => {
+        stepsToSearch.forEach(s => {
+            if (s.type === 'subfunction' && s.config?.outputVariable && s.id !== excludeStepId) {
+                variables.push(s.config.outputVariable.trim().toLowerCase());
+            }
+            if (s.type === 'conditional' && s.config?.next) {
+                if (s.config.next.true) collectFromSteps(s.config.next.true);
+                if (s.config.next.false) collectFromSteps(s.config.next.false);
+            }
+        });
+    };
+
+    collectFromSteps(steps);
+    return variables;
+};
+
 interface RuleConfigurationCardProps {
     step: ConfigurationStep;
     inputParameters: InputParameter[];
@@ -15,10 +35,18 @@ interface RuleConfigurationCardProps {
     onAddBranchStep?: (branch: 'true' | 'false') => void;
     handleAddBranchStep?: (stepId: string, branch: 'true' | 'false') => void;
     isViewMode?: boolean;
+    // Step number display props
+    stepNumber?: number; // Main step number (e.g., 2 in "Step 2")
+    conditionStepNumber?: number; // Sub-step number within condition branch (e.g., 1 in "Step 2 (1)")
+    // All configuration steps for validation (includes all steps, not just preceding ones)
+    allConfigurationSteps?: ConfigurationStep[];
 }
 
-export default function RuleConfigurationCard({ step, inputParameters, stepIndex, configurationSteps = [], onConfigUpdate, onAddBranchStep, handleAddBranchStep, isViewMode = false }: RuleConfigurationCardProps) {
+export default function RuleConfigurationCard({ step, inputParameters, stepIndex, configurationSteps = [], onConfigUpdate, onAddBranchStep, handleAddBranchStep, isViewMode = false, stepNumber, conditionStepNumber, allConfigurationSteps }: RuleConfigurationCardProps) {
     if (!step.type) return null;
+
+    // Use allConfigurationSteps if provided, otherwise fall back to configurationSteps for backward compatibility
+    const stepsForValidation = allConfigurationSteps || configurationSteps;
 
     // Map category IDs to full names
     const getCategoryName = (categoryId: string) => {
@@ -79,11 +107,31 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                 }
             };
 
+            // Generate step number display text
+            const displayStepNumber = stepNumber !== undefined ? stepNumber : stepIndex + 1;
+            const stepNumberText = conditionStepNumber !== undefined
+                ? `Step ${displayStepNumber} (${conditionStepNumber})`
+                : `Step ${displayStepNumber}`;
+
+            // Check if output variable is duplicate
+            const currentOutputVar = (config.outputVariable || `step_${stepIndex + 1}_output_variable`).trim().toLowerCase();
+            const allOtherOutputVars = collectAllOutputVariables(stepsForValidation, step.id);
+            const inputParamFieldNames = inputParameters.map(p => p.fieldName.trim().toLowerCase());
+            const isOutputVarDuplicate = currentOutputVar && (
+                allOtherOutputVars.includes(currentOutputVar) ||
+                inputParamFieldNames.includes(currentOutputVar)
+            );
+
             return (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative" style={{ maxWidth: '800px', margin: '0 auto' }}>
+                    {/* Step Number Badge - Top Right Corner */}
+                    <div className="absolute top-3 right-3 px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">
+                        {stepNumberText}
+                    </div>
+
                     {/* Title Section with Category Badge */}
                     <div className="mb-6">
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center justify-between mb-2 pr-24">
                             <h3 className="text-lg font-semibold text-gray-900">
                                 {subfunc.name}
                             </h3>
@@ -170,13 +218,19 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                     <div className="border-t border-gray-200 pt-4">
                         <div className="flex items-center justify-between">
                             <Label className="text-sm font-medium text-gray-900">Output Variable</Label>
-                            <Input
-                                value={config.outputVariable || `step_${stepIndex + 1}_output_variable`}
-                                onChange={(e) => handleOutputVariableChange(e.target.value)}
-                                className="w-64"
-                                inputSize="lg"
-                                disabled={isViewMode}
-                            />
+                            <div className="flex flex-col items-end">
+                                <Input
+                                    value={config.outputVariable || `step_${stepIndex + 1}_output_variable`}
+                                    onChange={(e) => handleOutputVariableChange(e.target.value)}
+                                    className="w-64"
+                                    inputSize="lg"
+                                    disabled={isViewMode}
+                                    variant={isOutputVarDuplicate ? 'error' : 'default'}
+                                />
+                                {isOutputVarDuplicate && (
+                                    <span className="text-red-500 text-xs mt-1">Variable name must be unique</span>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -194,6 +248,9 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                     onAddBranchStep={onAddBranchStep}
                     handleAddBranchStep={handleAddBranchStep}
                     isViewMode={isViewMode}
+                    stepNumber={stepNumber}
+                    conditionStepNumber={conditionStepNumber}
+                    allConfigurationSteps={allConfigurationSteps}
                 />
             );
 
@@ -206,6 +263,8 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                     configurationSteps={configurationSteps}
                     stepIndex={stepIndex}
                     onConfigUpdate={onConfigUpdate || (() => { })}
+                    stepNumber={stepNumber}
+                    conditionStepNumber={conditionStepNumber}
                 />
             );
 
