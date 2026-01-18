@@ -1,6 +1,7 @@
 import { ConfigurationStep, InputParameter } from '../../types/rule-configuration';
 import { Select } from 'antd';
 import { Label } from '../ui/label';
+import { Input } from '../ui/input';
 
 interface OutputCardProps {
     step: ConfigurationStep;
@@ -12,7 +13,7 @@ interface OutputCardProps {
 }
 
 export default function OutputCard({ step, inputParameters, configurationSteps, stepIndex, onConfigUpdate, isViewMode = false }: OutputCardProps) {
-    const config = step.config || { type: '', dataType: '', value: '' };
+    const config = step.config || { type: '', dataType: '', value: '', staticValue: ''  };
 
     // Get output variables from all previous steps
     const previousOutputVariables = configurationSteps
@@ -30,14 +31,14 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
             label: varName,
             value: varName
         })),
-        { label: 'Static', value: 'static' }
+        { label: 'Static Value', value: 'Static Value' }
     ];
 
     const handleValueChange = (selectedValue: string) => {
         let type = '';
 
         // Determine type based on selected value
-        if (selectedValue === 'static') {
+        if (selectedValue === 'Static Value') {
             type = 'static';
         } else if (inputParameters.some(p => p.name === selectedValue)) {
             type = 'inputParam';
@@ -48,7 +49,8 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
         onConfigUpdate(step.id, {
             ...config,
             type: type,
-            value: selectedValue
+            value: selectedValue,
+            staticValue: selectedValue === 'Static Value' ? '' : config.staticValue
         });
     };
 
@@ -59,8 +61,15 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
         });
     };
 
+    const handleStaticValueChange = (staticValue: string) => {
+        onConfigUpdate(step.id, {
+            ...config,
+            staticValue: staticValue
+        });
+    };
+
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative" style={{ maxWidth: '800px', margin: '0 auto' }}>
             {/* Title Section - Similar to Define Input Parameters */}
             <div className="flex items-start justify-between mb-1">
                 <div>
@@ -72,7 +81,7 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
                 </span>
             </div>
 
-            {/* Two Dropdowns in Single Row */}
+            {/* Type Selection and Data Type */}
             <div className="mt-6">
                 <div className="grid grid-cols-2 gap-4 items-start">
                     {/* First Dropdown - Type Selection (shows actual values) */}
@@ -119,6 +128,23 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
                         />
                     </div>
                 </div>
+
+                {/* Static Value Input - Show only when "Static Value" is selected */}
+                {config.value === 'Static Value' && (
+                    <div className="mt-4">
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                            Static Value <span className="text-black">*</span>
+                        </Label>
+                        <Input
+                            type={config.dataType === 'Date' ? 'date' : (config.dataType === 'Integer' || config.dataType === 'Float') ? 'number' : 'text'}
+                            value={config.staticValue || ''}
+                            onChange={(e) => handleStaticValueChange(e.target.value)}
+                            placeholder="Enter static value"
+                            className="w-full"
+                            inputSize="lg"
+                        />
+                    </div>
+                )}
             </div>
         </div>
     );

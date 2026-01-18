@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button, Collapse, Modal, Tooltip, Select } from 'antd';
 import { PlusOutlined, CloseOutlined, SearchOutlined, ExclamationCircleOutlined, CloseCircleFilled, CheckOutlined, CopyOutlined } from '@ant-design/icons';
@@ -43,6 +43,7 @@ export default function RuleCreatePage() {
     const [isClosing, setIsClosing] = useState(false);
     const [savedRuleFunction, setSavedRuleFunction] = useState<any>(null);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (ruleId) {
@@ -245,32 +246,71 @@ export default function RuleCreatePage() {
         const newStep: ConfigurationStep = {
             id: Date.now().toString(),
             type: functionType,
-            subfunctionId: subfunctionId
+            subfunctionId: subfunctionId,
+            // Initialize conditional steps with default config including conditions
+            ...(functionType === 'conditional' && {
+                config: {
+                    conditions: [{
+                        id: '1',
+                        sequence: 1,
+                        andOr: null,
+                        lhs: { type: '', value: '', dataType: 'String' },
+                        operator: 'equals',
+                        rhs: { type: '', value: '', dataType: 'String' }
+                    }],
+                    next: {
+                        true: [],
+                        false: []
+                    }
+                }
+            })
         };
 
         // Check if we're adding to a conditional branch
         if (activeBranchStep) {
-            const updatedSteps = configurationSteps.map(step => {
-                if (step.id === activeBranchStep.stepId && step.type === 'conditional') {
-                    const branch = activeBranchStep.branch;
-                    const currentBranchSteps = step.config?.next?.[branch] || [];
+            // Helper function to recursively find and update a conditional step
+            const updateConditionalStep = (steps: ConfigurationStep[]): ConfigurationStep[] => {
+                return steps.map(step => {
+                    if (step.id === activeBranchStep.stepId && step.type === 'conditional') {
+                        const branch = activeBranchStep.branch;
+                        const currentBranchSteps = step.config?.next?.[branch] || [];
 
-                    return {
-                        ...step,
-                        config: {
-                            ...step.config,
-                            activeBranch: branch,
-                            branchExpanded: true,
-                            next: {
-                                true: branch === 'true' ? [...currentBranchSteps, newStep] : (step.config?.next?.true || []),
-                                false: branch === 'false' ? [...currentBranchSteps, newStep] : (step.config?.next?.false || [])
+                        return {
+                            ...step,
+                            config: {
+                                ...step.config,
+                                activeBranch: branch,
+                                branchExpanded: true,
+                                next: {
+                                    true: branch === 'true' ? [...currentBranchSteps, newStep] : (step.config?.next?.true || []),
+                                    false: branch === 'false' ? [...currentBranchSteps, newStep] : (step.config?.next?.false || [])
+                                }
                             }
-                        }
-                    };
-                }
-                return step;
-            });
+                        };
+                    } else if (step.type === 'conditional' && step.config?.next) {
+                        // Recursively search in this conditional's branches
+                        const updatedTrueSteps = updateConditionalStep(step.config.next.true || []);
+                        const updatedFalseSteps = updateConditionalStep(step.config.next.false || []);
 
+                        // Only update if something changed
+                        if (updatedTrueSteps !== step.config.next.true || updatedFalseSteps !== step.config.next.false) {
+                            return {
+                                ...step,
+                                config: {
+                                    ...step.config,
+                                    next: {
+                                        true: updatedTrueSteps,
+                                        false: updatedFalseSteps
+                                    }
+                                }
+                            };
+                        }
+                    }
+                    return step;
+                });
+            };
+
+            const updatedSteps = updateConditionalStep(configurationSteps);
             setConfigurationSteps(updatedSteps);
             setActiveBranchStep(null);
         } else {
@@ -289,6 +329,19 @@ export default function RuleCreatePage() {
         setConfigurationStarted(true);
         setHasUnsavedChanges(true); // Mark as changed when adding a step
         setIsConfigModalOpen(false);
+
+        // Scroll to center when conditional is added
+        if (functionType === 'conditional') {
+            setTimeout(() => {
+                if (scrollContainerRef.current) {
+                    const container = scrollContainerRef.current;
+                    const scrollWidth = container.scrollWidth;
+                    const clientWidth = container.clientWidth;
+                    const centerScroll = (scrollWidth - clientWidth) / 2;
+                    container.scrollTo({ left: centerScroll, behavior: 'smooth' });
+                }
+            }, 100);
+        }
     };
 
     const handleAddStep = (position: number) => {
@@ -299,34 +352,6 @@ export default function RuleCreatePage() {
     const handleAddBranchStep = (stepId: string, branch: 'true' | 'false') => {
         setActiveBranchStep({ stepId, branch });
         setIsConfigModalOpen(true);
-    };
-
-    const handleAddOutputToFalseBranch = (stepId: string) => {
-        const updatedSteps = configurationSteps.map(step => {
-            if (step.id === stepId && step.type === 'conditional') {
-                // Create an output card
-                const newOutputStep: ConfigurationStep = {
-                    id: Date.now().toString(),
-                    type: 'output'
-                };
-
-                return {
-                    ...step,
-                    config: {
-                        ...step.config,
-                        activeBranch: 'false',
-                        branchExpanded: true,
-                        next: {
-                            true: step.config?.next?.true || [],
-                            false: [newOutputStep]
-                        }
-                    }
-                };
-            }
-            return step;
-        });
-
-        setConfigurationSteps(updatedSteps);
     };
 
     const handleConfigUpdate = (stepId: string, config: any) => {
@@ -1050,8 +1075,11 @@ export default function RuleCreatePage() {
                         </div>
                     </div>
 
-                    {/* Define Input Parameters */}
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 pb-8 mb-6">
+                    {/* Scrollable Container for entire rule tree */}
+                    <div ref={scrollContainerRef} className="overflow-x-auto pb-4">
+                        <div className="min-w-fit flex flex-col items-center">
+                            {/* Define Input Parameters */}
+                            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 pb-8 mb-6 w-full" style={{ maxWidth: '1100px' }}>
                         <div className="flex items-start justify-between mb-1">
                             <div>
                                 <h2 className="text-lg font-semibold text-gray-900 mb-1">
@@ -1230,8 +1258,15 @@ export default function RuleCreatePage() {
                             {/* Vertical Line connecting Start to first Card */}
                             {!isViewMode && <div className="h-8 w-px bg-gray-300 mx-auto -mt-8"></div>}
 
-                            {configurationSteps.map((step, index) => (
-                                <div key={step.id}>
+                            {configurationSteps.map((step, index) => {
+                                // Check if there's a conditional card in the steps
+                                const hasConditional = configurationSteps.some(s => s.type === 'conditional');
+                                // Add padding if this is not a conditional card and there is a conditional somewhere
+                                const shouldAddPadding = hasConditional && step.type !== 'conditional';
+
+                                return (
+                                <div key={step.id} className="w-full flex justify-center" style={step.type === 'conditional' ? { minWidth: '1600px' } : {}}>
+                                    <div className="w-full" style={step.type !== 'conditional' ? { maxWidth: '800px' } : {}}>
                                     <RuleConfigurationCard
                                         step={step}
                                         inputParameters={inputParameters}
@@ -1239,7 +1274,7 @@ export default function RuleCreatePage() {
                                         configurationSteps={configurationSteps}
                                         onConfigUpdate={handleConfigUpdate}
                                         onAddBranchStep={(branch) => handleAddBranchStep(step.id, branch)}
-                                        onAddOutputToFalse={() => handleAddOutputToFalseBranch(step.id)}
+                                        handleAddBranchStep={handleAddBranchStep}
                                         isViewMode={isViewMode}
                                     />
 
@@ -1265,19 +1300,14 @@ export default function RuleCreatePage() {
                                     {index < configurationSteps.length - 1 && (
                                         <div className="h-10 w-px bg-gray-300 mx-auto -mt-8"></div>
                                     )}
+                                    </div>
                                 </div>
-                            ))}
+                                );
+                            })}
 
                             {/* Action Buttons */}
                             {!isViewMode && (
                                 <div className="flex justify-end items-center py-6 gap-3">
-                                    <Button
-                                        size="large"
-                                        onClick={() => navigate('/rules')}
-                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                                    >
-                                        Cancel
-                                    </Button>
                                     <Button
                                         type="primary"
                                         size="large"
@@ -1286,10 +1316,19 @@ export default function RuleCreatePage() {
                                     >
                                         Save
                                     </Button>
+                                    <Button
+                                        size="large"
+                                        onClick={() => navigate('/rules')}
+                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                    >
+                                        Cancel
+                                    </Button>
                                 </div>
                             )}
                         </>
                     )}
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1301,7 +1340,7 @@ export default function RuleCreatePage() {
                 footer={null}
                 width={500}
                 className="function-library-modal"
-                bodyStyle={{ maxHeight: '70vh', overflowY: 'auto', overflowX: 'hidden' }}
+                styles={{ body: { maxHeight: '70vh', overflowY: 'auto', overflowX: 'hidden' } }}
             >
                 <div>
                     <h2 className="text-xl font-semibold text-gray-900 mb-4 pl-6">Select Function</h2>
@@ -1532,10 +1571,25 @@ export default function RuleCreatePage() {
 
                                 {testResult && (
                                     <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                        <h4 className="text-sm font-semibold mb-2">Result:</h4>
-                                        <pre className="text-sm overflow-auto bg-white p-3 rounded border border-gray-200" style={{ maxHeight: '400px' }}>
-                                            {JSON.stringify(testResult, null, 2)}
-                                        </pre>
+                                        {testResult.success === false && testResult.error ? (
+                                            <>
+                                                <h4 className="text-sm font-semibold text-gray-700 mb-2">Error:</h4>
+                                                <p className="text-sm text-gray-800">
+                                                    {testResult.error.message || 'An unknown error occurred'}
+                                                </p>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <h4 className="text-sm font-semibold text-gray-700 mb-2">Result:</h4>
+                                                <p className="text-sm text-gray-800 break-all">
+                                                    {testResult?.value !== undefined
+                                                        ? (typeof testResult.value === 'object'
+                                                            ? (testResult.value?.value !== undefined ? String(testResult.value.value) : JSON.stringify(testResult.value))
+                                                            : String(testResult.value))
+                                                        : (typeof testResult === 'object' ? JSON.stringify(testResult) : String(testResult))}
+                                                </p>
+                                            </>
+                                        )}
                                     </div>
                                 )}
                             </div>
