@@ -43,22 +43,29 @@ export default function ConditionalCard({
     handleAddBranchStep,
     isViewMode = false
 }: ConditionalCardProps) {
+    const defaultCondition = {
+        id: '1',
+        sequence: 1,
+        andOr: null,
+        lhs: { type: '', value: '', dataType: 'String' },
+        operator: 'equals',
+        rhs: { type: '', value: '', dataType: 'String' }
+    };
+
     const config = step.config || {
-        conditions: [{
-            id: '1',
-            sequence: 1,
-            andOr: null,
-            lhs: { type: '', value: '', dataType: 'String' },
-            operator: 'equals',
-            rhs: { type: '', value: '', dataType: 'String' }
-        }],
+        conditions: [defaultCondition],
         next: {
             true: [],
             false: []
         }
     };
 
-    const conditions = config.conditions || [];
+    // Use step.config.conditions directly to ensure we read from the actual props
+    const conditions = (step.config?.conditions && step.config.conditions.length > 0)
+        ? step.config.conditions
+        : (config.conditions && config.conditions.length > 0)
+            ? config.conditions
+            : [defaultCondition];
     const [popoverVisible, setPopoverVisible] = useState<number | null>(null);
 
     // Get branch steps from config
@@ -131,7 +138,9 @@ export default function ConditionalCard({
     ];
 
     const handleConditionChange = (index: number, field: string, value: any) => {
-        const updatedConditions = [...conditions];
+        // Use step.config.conditions directly to ensure we're working with the actual state
+        const currentConditions = step.config?.conditions || conditions;
+        const updatedConditions = [...currentConditions];
         const keys = field.split('.');
 
         if (keys.length === 1) {
@@ -148,8 +157,32 @@ export default function ConditionalCard({
 
         if (onConfigUpdate) {
             onConfigUpdate(step.id, {
-                ...config,
-                conditions: updatedConditions
+                ...step.config,
+                conditions: updatedConditions,
+                next: step.config?.next || { true: [], false: [] }
+            });
+        }
+    };
+
+    // Handle LHS/RHS type selection - updates type and value atomically
+    const handleSideTypeChange = (index: number, side: 'lhs' | 'rhs', typeValue: string) => {
+        const currentConditions = step.config?.conditions || conditions;
+        const updatedConditions = [...currentConditions];
+
+        updatedConditions[index] = {
+            ...updatedConditions[index],
+            [side]: {
+                ...updatedConditions[index][side],
+                type: typeValue,
+                value: typeValue === 'Static Value' ? '' : typeValue
+            }
+        };
+
+        if (onConfigUpdate) {
+            onConfigUpdate(step.id, {
+                ...step.config,
+                conditions: updatedConditions,
+                next: step.config?.next || { true: [], false: [] }
             });
         }
     };
@@ -211,7 +244,7 @@ export default function ConditionalCard({
 
     return (
         <>
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative" style={{ maxWidth: '800px', margin: '0 auto' }}>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative overflow-visible" style={{ maxWidth: '800px', margin: '0 auto' }}>
                 {/* Title Section */}
                 <div className="mb-6">
                     <div className="flex items-center justify-between mb-2">
@@ -223,7 +256,7 @@ export default function ConditionalCard({
                 </div>
 
                 {/* Conditions */}
-                <div className="space-y-3 mb-6">
+                <div className="space-y-3 mb-6 overflow-visible">
                     {conditions.map((condition, index) => (
                         <div key={condition.id} className="space-y-3">
                             {/* AND/OR Badge (for all except first condition) */}
@@ -239,20 +272,13 @@ export default function ConditionalCard({
                             )}
 
                             {/* Condition Row */}
-                            <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-3 items-start py-3 rounded-lg">
+                            <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-3 items-start py-3 rounded-lg overflow-visible">
                                 {/* Left Hand Side (LHS) */}
-                                <div className="space-y-2">
+                                <div className="space-y-2 overflow-visible">
                                     <Select
                                         showSearch
                                         value={condition.lhs.type || undefined}
-                                        onChange={(value) => {
-                                            handleConditionChange(index, 'lhs.type', value);
-                                            if (value !== 'Static Value') {
-                                                handleConditionChange(index, 'lhs.value', value);
-                                            } else {
-                                                handleConditionChange(index, 'lhs.value', '');
-                                            }
-                                        }}
+                                        onChange={(value) => handleSideTypeChange(index, 'lhs', value)}
                                         placeholder="Select value"
                                         className="w-full"
                                         size="large"
@@ -308,18 +334,11 @@ export default function ConditionalCard({
                                 </div>
 
                                 {/* Right Hand Side (RHS) */}
-                                <div className="space-y-2">
+                                <div className="space-y-2 overflow-visible">
                                     <Select
                                         showSearch
                                         value={condition.rhs.type || undefined}
-                                        onChange={(value) => {
-                                            handleConditionChange(index, 'rhs.type', value);
-                                            if (value !== 'Static Value') {
-                                                handleConditionChange(index, 'rhs.value', value);
-                                            } else {
-                                                handleConditionChange(index, 'rhs.value', '');
-                                            }
-                                        }}
+                                        onChange={(value) => handleSideTypeChange(index, 'rhs', value)}
                                         placeholder="Select value"
                                         className="w-full"
                                         size="large"
@@ -455,13 +474,18 @@ export default function ConditionalCard({
                                     <div className="space-y-4">
                                             {/* Render TRUE branch steps */}
                                             {trueSteps.map((trueStep: ConfigurationStep, index: number) => {
+                                                // Combine parent steps (before conditional) with previous branch steps
+                                                const combinedSteps = [
+                                                    ...configurationSteps.slice(0, stepIndex),
+                                                    ...trueSteps.slice(0, index)
+                                                ];
                                                 return (
                                                 <div key={trueStep.id}>
                                                     <RuleConfigurationCard
                                                         step={trueStep}
                                                         inputParameters={inputParameters}
-                                                        stepIndex={stepIndex}
-                                                        configurationSteps={configurationSteps}
+                                                        stepIndex={combinedSteps.length}
+                                                        configurationSteps={combinedSteps}
                                                         onConfigUpdate={(stepId: string, stepConfig: any) => {
                                                             // Update the step in TRUE branch - need to recursively update
                                                             const updateStepRecursively = (steps: ConfigurationStep[]): ConfigurationStep[] => {
@@ -546,13 +570,18 @@ export default function ConditionalCard({
                                     <div className="space-y-4">
                                             {/* Render FALSE branch steps (output card) */}
                                             {falseSteps.map((falseStep: ConfigurationStep, index: number) => {
+                                                // Combine parent steps (before conditional) with previous branch steps
+                                                const combinedSteps = [
+                                                    ...configurationSteps.slice(0, stepIndex),
+                                                    ...falseSteps.slice(0, index)
+                                                ];
                                                 return (
                                                 <div key={falseStep.id}>
                                                     <RuleConfigurationCard
                                                         step={falseStep}
                                                         inputParameters={inputParameters}
-                                                        stepIndex={stepIndex}
-                                                        configurationSteps={configurationSteps}
+                                                        stepIndex={combinedSteps.length}
+                                                        configurationSteps={combinedSteps}
                                                         onConfigUpdate={(stepId: string, stepConfig: any) => {
                                                             // Update the step in FALSE branch - need to recursively update
                                                             const updateStepRecursively = (steps: ConfigurationStep[]): ConfigurationStep[] => {

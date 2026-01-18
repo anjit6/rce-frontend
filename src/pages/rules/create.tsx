@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button, Collapse, Modal, Tooltip, Select } from 'antd';
 import { PlusOutlined, CloseOutlined, SearchOutlined, ExclamationCircleOutlined, CloseCircleFilled, CheckOutlined, CopyOutlined } from '@ant-design/icons';
@@ -43,6 +43,7 @@ export default function RuleCreatePage() {
     const [isClosing, setIsClosing] = useState(false);
     const [savedRuleFunction, setSavedRuleFunction] = useState<any>(null);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (ruleId) {
@@ -245,7 +246,24 @@ export default function RuleCreatePage() {
         const newStep: ConfigurationStep = {
             id: Date.now().toString(),
             type: functionType,
-            subfunctionId: subfunctionId
+            subfunctionId: subfunctionId,
+            // Initialize conditional steps with default config including conditions
+            ...(functionType === 'conditional' && {
+                config: {
+                    conditions: [{
+                        id: '1',
+                        sequence: 1,
+                        andOr: null,
+                        lhs: { type: '', value: '', dataType: 'String' },
+                        operator: 'equals',
+                        rhs: { type: '', value: '', dataType: 'String' }
+                    }],
+                    next: {
+                        true: [],
+                        false: []
+                    }
+                }
+            })
         };
 
         // Check if we're adding to a conditional branch
@@ -311,6 +329,19 @@ export default function RuleCreatePage() {
         setConfigurationStarted(true);
         setHasUnsavedChanges(true); // Mark as changed when adding a step
         setIsConfigModalOpen(false);
+
+        // Scroll to center when conditional is added
+        if (functionType === 'conditional') {
+            setTimeout(() => {
+                if (scrollContainerRef.current) {
+                    const container = scrollContainerRef.current;
+                    const scrollWidth = container.scrollWidth;
+                    const clientWidth = container.clientWidth;
+                    const centerScroll = (scrollWidth - clientWidth) / 2;
+                    container.scrollTo({ left: centerScroll, behavior: 'smooth' });
+                }
+            }, 100);
+        }
     };
 
     const handleAddStep = (position: number) => {
@@ -1045,7 +1076,7 @@ export default function RuleCreatePage() {
                     </div>
 
                     {/* Scrollable Container for entire rule tree */}
-                    <div className="overflow-x-auto pb-4">
+                    <div ref={scrollContainerRef} className="overflow-x-auto pb-4">
                         <div className="min-w-fit flex flex-col items-center">
                             {/* Define Input Parameters */}
                             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 pb-8 mb-6 w-full" style={{ maxWidth: '1100px' }}>
@@ -1278,19 +1309,19 @@ export default function RuleCreatePage() {
                             {!isViewMode && (
                                 <div className="flex justify-end items-center py-6 gap-3">
                                     <Button
-                                        size="large"
-                                        onClick={() => navigate('/rules')}
-                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                                    >
-                                        Cancel
-                                    </Button>
-                                    <Button
                                         type="primary"
                                         size="large"
                                         onClick={handleSave}
                                         className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none"
                                     >
                                         Save
+                                    </Button>
+                                    <Button
+                                        size="large"
+                                        onClick={() => navigate('/rules')}
+                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                    >
+                                        Cancel
                                     </Button>
                                 </div>
                             )}
@@ -1309,7 +1340,7 @@ export default function RuleCreatePage() {
                 footer={null}
                 width={500}
                 className="function-library-modal"
-                bodyStyle={{ maxHeight: '70vh', overflowY: 'auto', overflowX: 'hidden' }}
+                styles={{ body: { maxHeight: '70vh', overflowY: 'auto', overflowX: 'hidden' } }}
             >
                 <div>
                     <h2 className="text-xl font-semibold text-gray-900 mb-4 pl-6">Select Function</h2>
@@ -1540,10 +1571,25 @@ export default function RuleCreatePage() {
 
                                 {testResult && (
                                     <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                        <h4 className="text-sm font-semibold mb-2">Result:</h4>
-                                        <pre className="text-sm overflow-auto bg-white p-3 rounded border border-gray-200" style={{ maxHeight: '400px' }}>
-                                            {JSON.stringify(testResult, null, 2)}
-                                        </pre>
+                                        {testResult.success === false && testResult.error ? (
+                                            <>
+                                                <h4 className="text-sm font-semibold text-gray-700 mb-2">Error:</h4>
+                                                <p className="text-sm text-gray-800">
+                                                    {testResult.error.message || 'An unknown error occurred'}
+                                                </p>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <h4 className="text-sm font-semibold text-gray-700 mb-2">Result:</h4>
+                                                <p className="text-sm text-gray-800 break-all">
+                                                    {testResult?.value !== undefined
+                                                        ? (typeof testResult.value === 'object'
+                                                            ? (testResult.value?.value !== undefined ? String(testResult.value.value) : JSON.stringify(testResult.value))
+                                                            : String(testResult.value))
+                                                        : (typeof testResult === 'object' ? JSON.stringify(testResult) : String(testResult))}
+                                                </p>
+                                            </>
+                                        )}
                                     </div>
                                 )}
                             </div>
