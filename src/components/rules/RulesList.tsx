@@ -135,8 +135,8 @@ export default function RulesList() {
                 setIsModalOpen(false);
                 setSelectedRuleType(null);
 
-                // Navigate to the rule configuration page
-                navigate(`/rule/create/${newRule.id}`);
+                // Navigate to the rule configuration page with state indicating it's a new rule
+                navigate(`/rule/create/${newRule.id}`, { state: { isNewRule: true } });
             } catch (error: any) {
                 console.error('Failed to create rule:', error);
                 const errorMessage = error?.response?.data?.error || 'Failed to create rule. Please try again.';

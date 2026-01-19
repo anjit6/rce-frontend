@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button, Collapse, Modal, Tooltip, Select, message } from 'antd';
 import { PlusOutlined, CloseOutlined, SearchOutlined, ExclamationCircleOutlined, CloseCircleFilled, CheckOutlined, CopyOutlined } from '@ant-design/icons';
 import Layout from '../../components/layout/Layout';
@@ -121,6 +121,7 @@ const updateParamReferencesInSteps = (
 export default function RuleCreatePage() {
     const { ruleId } = useParams<{ ruleId: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
     const [rule, setRule] = useState<any>(null);
     const [isViewMode, setIsViewMode] = useState(false); // Default to edit mode
     const [configurationStarted, setConfigurationStarted] = useState(false);
@@ -164,8 +165,11 @@ export default function RuleCreatePage() {
                     setRule(ruleData);
                     document.title = `${ruleData.name} - RCE`;
 
-                    // When opening an existing rule, always start in view mode
-                    setIsViewMode(true);
+                    // Check if this is a newly created rule from navigation state
+                    const isNewRule = (location.state as any)?.isNewRule;
+
+                    // If it's a new rule, start in edit mode; otherwise, start in view mode
+                    setIsViewMode(!isNewRule);
 
                     // Load configuration from localStorage (existing functionality)
                     const savedConfig = localStorage.getItem('rce_rule_configurations');
@@ -225,7 +229,7 @@ export default function RuleCreatePage() {
             // No ruleId means creating a brand new rule - edit mode
             setIsViewMode(false);
         }
-    }, [ruleId, navigate]);
+    }, [ruleId, navigate, location]);
 
     // Update active accordion keys when modal opens or search query changes
     useEffect(() => {
