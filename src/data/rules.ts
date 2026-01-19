@@ -1,5 +1,5 @@
 // Rule types
-export type RuleStatus = 'WIP' | 'Test' | 'Pending' | 'Production';
+export type RuleStatus = 'WIP' | 'TEST' | 'PENDING' | 'PROD';
 export type RuleType = 'static' | 'dynamic';
 
 export interface RuleVersion {

@@ -8,10 +8,11 @@ interface CreateRuleModalProps {
     isOpen: boolean;
     ruleType: 'static' | 'dynamic' | null;
     onClose: () => void;
-    onSubmit: (data: { name: string; description: string }) => void;
+    onSubmit: (data: { name: string; description: string }) => void | Promise<void>;
+    loading?: boolean;
 }
 
-export default function CreateRuleModal({ isOpen, ruleType, onClose, onSubmit }: CreateRuleModalProps) {
+export default function CreateRuleModal({ isOpen, ruleType, onClose, onSubmit, loading = false }: CreateRuleModalProps) {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [nameError, setNameError] = useState('');
@@ -111,6 +112,7 @@ export default function CreateRuleModal({ isOpen, ruleType, onClose, onSubmit }:
                     <Button
                         onClick={onClose}
                         size="large"
+                        disabled={loading}
                         className="rounded-lg px-6 hover:border-red-500 hover:text-red-500 focus:border-red-500 focus:text-red-500"
                     >
                         Cancel
@@ -119,6 +121,7 @@ export default function CreateRuleModal({ isOpen, ruleType, onClose, onSubmit }:
                         type="primary"
                         htmlType="submit"
                         size="large"
+                        loading={loading}
                         className="rounded-lg px-6 bg-red-600 hover:bg-red-500 focus:bg-red-500 border-none"
                     >
                         Create

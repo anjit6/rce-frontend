@@ -1,20 +1,30 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Button, Collapse, Modal, Tooltip, Select } from 'antd';
+import { Button, Collapse, Modal, Tooltip, Select, message } from 'antd';
 import { PlusOutlined, CloseOutlined, SearchOutlined, ExclamationCircleOutlined, CloseCircleFilled, CheckOutlined, CopyOutlined } from '@ant-design/icons';
 import Layout from '../../components/layout/Layout';
-import { getRuleById, updateRule } from '../../data/rules';
+import { rulesService } from '../../services/rules.service';
 import { SUBFUNCTIONS } from '../../constants/subfunctions';
 import { InputParameter, FunctionType, ConfigurationStep } from '../../types/rule-configuration';
-import { getRuleConfiguration, saveRuleConfiguration } from '../../data/ruleConfigurations';
 import RuleConfigurationCard from '../../components/rules/RuleConfigurationCard';
 import { Input } from '../../components/ui/input';
-import { CustomSelect } from '../../components/ui/custom-select';
 import { Label } from '../../components/ui/label';
 import { compileRule } from '../../utils/ruleCompiler';
 
 const { Panel } = Collapse;
 const { confirm } = Modal;
+
+// localStorage helper functions
+const saveRuleConfiguration = (config: any) => {
+    try {
+        const existingConfigs = localStorage.getItem('rce_rule_configurations');
+        const configurations = existingConfigs ? JSON.parse(existingConfigs) : {};
+        configurations[config.ruleId] = config;
+        localStorage.setItem('rce_rule_configurations', JSON.stringify(configurations));
+    } catch (error) {
+        console.error('Failed to save configuration to localStorage:', error);
+    }
+};
 
 // Utility function to find all usages of an input parameter in configuration steps
 const findInputParamUsages = (
@@ -134,56 +144,83 @@ export default function RuleCreatePage() {
     const [isClosing, setIsClosing] = useState(false);
     const [savedRuleFunction, setSavedRuleFunction] = useState<any>(null);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [loading, setLoading] = useState(false);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (ruleId) {
-            const ruleData = getRuleById(ruleId);
-            if (ruleData) {
-                setRule(ruleData);
-                document.title = `${ruleData.name} - RCE`;
+            const loadRuleData = async () => {
+                try {
+                    setLoading(true);
 
-                // Load saved configuration if exists
-                const savedConfig = getRuleConfiguration(parseInt(ruleId));
-                if (savedConfig) {
-                    console.log("📂 Loading saved configuration for rule:", ruleId);
-                    console.log("Saved config:", savedConfig);
-
-                    // Restore input parameters
-                    if (savedConfig.inputParameters && savedConfig.inputParameters.length > 0) {
-                        setInputParameters(savedConfig.inputParameters);
-                        console.log("✅ Input parameters restored:", savedConfig.inputParameters.length, "parameters");
+                    // Load rule metadata from API
+                    const ruleData = await rulesService.getRuleById(parseInt(ruleId));
+                    if (!ruleData) {
+                        message.error('Rule not found');
+                        navigate('/rules');
+                        return;
                     }
 
-                    // Restore configuration steps
-                    if (savedConfig.configurationSteps && savedConfig.configurationSteps.length > 0) {
-                        setConfigurationSteps(savedConfig.configurationSteps);
-                        setConfigurationStarted(true);
-                        console.log("✅ Configuration steps restored:", savedConfig.configurationSteps.length, "steps");
-                    }
+                    setRule(ruleData);
+                    document.title = `${ruleData.name} - RCE`;
 
-                    // Store the saved ruleFunction (including the generated code)
-                    if (savedConfig.ruleFunction) {
-                        setSavedRuleFunction(savedConfig.ruleFunction);
-                        if (savedConfig.ruleFunction.code) {
-                            setGeneratedJsCode(savedConfig.ruleFunction.code);
-                            console.log("✅ Generated JavaScript code loaded from saved configuration");
-                        }
-                    }
-
-                    // Set to view mode when configuration exists (viewing existing rule)
+                    // When opening an existing rule, always start in view mode
                     setIsViewMode(true);
-                    setHasUnsavedChanges(false);
 
-                    console.log("✅ Configuration loaded successfully!");
-                } else {
-                    console.log("ℹ️ No saved configuration found for rule:", ruleId);
-                    // No saved config means we're creating/editing a new rule - stay in edit mode
-                    setIsViewMode(false);
+                    // Load configuration from localStorage (existing functionality)
+                    const savedConfig = localStorage.getItem('rce_rule_configurations');
+                    if (savedConfig) {
+                        try {
+                            const configurations = JSON.parse(savedConfig);
+                            const ruleConfig = configurations[ruleId];
+
+                            if (ruleConfig) {
+                                console.log("📂 Loading saved configuration for rule:", ruleId);
+                                console.log("Saved config:", ruleConfig);
+
+                                // Restore input parameters
+                                if (ruleConfig.inputParameters && ruleConfig.inputParameters.length > 0) {
+                                    setInputParameters(ruleConfig.inputParameters);
+                                    console.log("✅ Input parameters restored:", ruleConfig.inputParameters.length, "parameters");
+                                }
+
+                                // Restore configuration steps
+                                if (ruleConfig.configurationSteps && ruleConfig.configurationSteps.length > 0) {
+                                    setConfigurationSteps(ruleConfig.configurationSteps);
+                                    setConfigurationStarted(true);
+                                    console.log("✅ Configuration steps restored:", ruleConfig.configurationSteps.length, "steps");
+                                }
+
+                                // Store the saved ruleFunction (including the generated code)
+                                if (ruleConfig.ruleFunction) {
+                                    setSavedRuleFunction(ruleConfig.ruleFunction);
+                                    if (ruleConfig.ruleFunction.code) {
+                                        setGeneratedJsCode(ruleConfig.ruleFunction.code);
+                                        console.log("✅ Generated JavaScript code loaded from saved configuration");
+                                    }
+                                }
+
+                                setHasUnsavedChanges(false);
+                                console.log("✅ Configuration loaded successfully!");
+                            } else {
+                                console.log("ℹ️ No saved configuration found for rule:", ruleId);
+                            }
+                        } catch (parseError) {
+                            console.error("Failed to parse localStorage config:", parseError);
+                        }
+                    } else {
+                        console.log("ℹ️ No configurations in localStorage");
+                    }
+                } catch (error) {
+                    console.error('Failed to load rule:', error);
+                    message.error('Failed to load rule');
+                    navigate('/rules');
+                } finally {
+                    setLoading(false);
                 }
-            } else {
-                navigate('/rules');
-            }
+            };
+
+            loadRuleData();
         } else {
             // No ruleId means creating a brand new rule - edit mode
             setIsViewMode(false);
@@ -740,13 +777,6 @@ export default function RuleCreatePage() {
         try {
             // Save to localStorage
             saveRuleConfiguration(configToSave);
-
-            // Also update the rule object
-            if (rule) {
-                updateRule(rule.id, {
-                    ruleFunction
-                });
-            }
 
             // Log the generated JSON with clear formatting
             console.log("=".repeat(80));
@@ -1314,254 +1344,254 @@ export default function RuleCreatePage() {
                         <div className="min-w-fit flex flex-col items-center">
                             {/* Define Input Parameters */}
                             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 pb-8 mb-6 w-full" style={{ maxWidth: '1100px' }}>
-                        <div className="flex items-start justify-between mb-1">
-                            <div>
-                                <h2 className="text-lg font-semibold text-gray-900 mb-1">
-                                    {isViewMode ? 'Input Parameters' : 'Define Input Parameters'}
-                                </h2>
-                                <p className="text-sm text-gray-600">
-                                    {inputParameters.length} parameter{inputParameters.length !== 1 ? 's' : ''} defined
-                                </p>
-                            </div>
-                            {!isViewMode && (
-                                <Button
-                                    icon={<PlusOutlined />}
-                                    type="primary"
-                                    size="middle"
-                                    onClick={addInputParameter}
-                                    className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none rounded-lg px-6"
-                                >
-                                    Add Parameter
-                                </Button>
-                            )}
-                        </div>
+                                <div className="flex items-start justify-between mb-1">
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                                            {isViewMode ? 'Input Parameters' : 'Define Input Parameters'}
+                                        </h2>
+                                        <p className="text-sm text-gray-600">
+                                            {inputParameters.length} parameter{inputParameters.length !== 1 ? 's' : ''} defined
+                                        </p>
+                                    </div>
+                                    {!isViewMode && (
+                                        <Button
+                                            icon={<PlusOutlined />}
+                                            type="primary"
+                                            size="middle"
+                                            onClick={addInputParameter}
+                                            className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none rounded-lg px-6"
+                                        >
+                                            Add Parameter
+                                        </Button>
+                                    )}
+                                </div>
 
-                        {isViewMode ? (
-                            /* Table View for View Mode */
-                            <div className="mt-6 overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
-                                        <tr>
-                                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Type</th>
-                                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Field Name</th>
-                                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Data Type</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-200">
-                                        {inputParameters.map((param) => (
-                                            <tr key={param.id} className="hover:bg-gray-50">
-                                                <td className="px-4 py-3 text-sm text-gray-900">{param.type}</td>
-                                                <td className="px-4 py-3 text-sm text-gray-900">{param.fieldName}</td>
-                                                <td className="px-4 py-3 text-sm text-gray-900">{param.dataType}</td>
-                                            </tr>
+                                {isViewMode ? (
+                                    /* Table View for View Mode */
+                                    <div className="mt-6 overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-gray-50 border-b border-gray-200">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Type</th>
+                                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Field Name</th>
+                                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Data Type</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-200">
+                                                {inputParameters.map((param) => (
+                                                    <tr key={param.id} className="hover:bg-gray-50">
+                                                        <td className="px-4 py-3 text-sm text-gray-900">{param.type}</td>
+                                                        <td className="px-4 py-3 text-sm text-gray-900">{param.fieldName}</td>
+                                                        <td className="px-4 py-3 text-sm text-gray-900">{param.dataType}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    /* Editable Form View for Edit Mode */
+                                    <div className="space-y-4 max-h-[400px] overflow-y-auto mt-6 px-1 pb-1">
+                                        {inputParameters.map((param, index) => (
+                                            <div key={param.id}>
+                                                <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-6 items-start">
+                                                    {/* Type Column */}
+                                                    <div>
+                                                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Type <span className="text-black">*</span></Label>
+                                                        <Select
+                                                            showSearch
+                                                            value={param.type || undefined}
+                                                            onChange={(value) => updateInputParameter(param.id, 'type', value)}
+                                                            placeholder="Select type"
+                                                            className="w-full"
+                                                            size="large"
+                                                            status={parameterErrors[param.id]?.type ? 'error' : undefined}
+                                                            options={[
+                                                                { label: 'Input field', value: 'Input field' },
+                                                                { label: 'Metadata field', value: 'Metadata field' },
+                                                                { label: 'String', value: 'String' }
+                                                            ]}
+                                                            filterOption={(input, option) =>
+                                                                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                                            }
+                                                            popupMatchSelectWidth={false}
+                                                            listHeight={256}
+                                                        />
+                                                        {parameterErrors[param.id]?.type && (
+                                                            <span className="text-red-500 text-xs mt-1 block">This field is required</span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Field Name Column */}
+                                                    <div>
+                                                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                                                            {param.type === 'Metadata field' ? 'Metadata Field Name' :
+                                                                param.type === 'String' || param.type === 'Number' || param.type === 'Date' || param.type === 'Boolean' ? 'Parameter Name' :
+                                                                    'Field Name'} <span className="text-black">*</span>
+                                                        </Label>
+                                                        <Input
+                                                            value={param.fieldName}
+                                                            onChange={(e) => updateInputParameter(param.id, 'fieldName', e.target.value)}
+                                                            placeholder={
+                                                                param.type === 'Metadata field' ? 'Enter metadata field name' :
+                                                                    param.type === 'String' || param.type === 'Number' || param.type === 'Date' || param.type === 'Boolean' ? 'Enter parameter name' :
+                                                                        'Enter field name'
+                                                            }
+                                                            className="w-full"
+                                                            inputSize="lg"
+                                                            variant={(parameterErrors[param.id]?.fieldName || parameterErrors[param.id]?.duplicate) ? 'error' : 'default'}
+                                                        />
+                                                        {parameterErrors[param.id]?.fieldName && (
+                                                            <span className="text-red-500 text-xs mt-1 block">This field is required</span>
+                                                        )}
+                                                        {parameterErrors[param.id]?.duplicate && !parameterErrors[param.id]?.fieldName && (
+                                                            <span className="text-red-500 text-xs mt-1 block">Field name must be unique</span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Field Data Type Column */}
+                                                    <div>
+                                                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Field Data Type <span className="text-black">*</span></Label>
+                                                        <Select
+                                                            showSearch
+                                                            value={param.dataType || 'String'}
+                                                            onChange={(value) => handleDataTypeChange(param.id, param.dataType || 'String', value)}
+                                                            placeholder="Select data type"
+                                                            className="w-full"
+                                                            size="large"
+                                                            status={parameterErrors[param.id]?.dataType ? 'error' : undefined}
+                                                            options={[
+                                                                { label: 'String', value: 'String' },
+                                                                { label: 'Integer', value: 'Integer' },
+                                                                { label: 'Float', value: 'Float' },
+                                                                { label: 'Boolean', value: 'Boolean' }
+                                                            ]}
+                                                            filterOption={(input, option) =>
+                                                                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                                            }
+                                                            popupMatchSelectWidth={false}
+                                                            listHeight={256}
+                                                        />
+                                                        {parameterErrors[param.id]?.dataType && (
+                                                            <span className="text-red-500 text-xs mt-1 block">This field is required</span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Delete Button Column */}
+                                                    <div className="flex items-start justify-end pt-8">
+                                                        {inputParameters.length > 1 && (
+                                                            <Button
+                                                                icon={<CloseOutlined />}
+                                                                onClick={() => removeInputParameter(param.id)}
+                                                                className="delete-param-btn flex items-center justify-center w-9 h-9 border-none text-gray-400 transition-colors rounded-full"
+                                                                type="text"
+                                                            />
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Horizontal Line Separator */}
+                                                {index < inputParameters.length - 1 && (
+                                                    <div className="border-b border-gray-200 my-4"></div>
+                                                )}
+                                            </div>
                                         ))}
-                                    </tbody>
-                                </table>
+                                    </div>
+                                )}
                             </div>
-                        ) : (
-                            /* Editable Form View for Edit Mode */
-                            <div className="space-y-4 max-h-[400px] overflow-y-auto mt-6 px-1 pb-1">
-                            {inputParameters.map((param, index) => (
-                                <div key={param.id}>
-                                    <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-6 items-start">
-                                        {/* Type Column */}
-                                        <div>
-                                            <Label className="text-sm font-medium text-gray-700 mb-2 block">Type <span className="text-black">*</span></Label>
-                                            <Select
-                                                showSearch
-                                                value={param.type || undefined}
-                                                onChange={(value) => updateInputParameter(param.id, 'type', value)}
-                                                placeholder="Select type"
-                                                className="w-full"
-                                                size="large"
-                                                status={parameterErrors[param.id]?.type ? 'error' : undefined}
-                                                options={[
-                                                    { label: 'Input field', value: 'Input field' },
-                                                    { label: 'Metadata field', value: 'Metadata field' },
-                                                    { label: 'String', value: 'String' }
-                                                ]}
-                                                filterOption={(input, option) =>
-                                                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                                                }
-                                                popupMatchSelectWidth={false}
-                                                listHeight={256}
-                                            />
-                                            {parameterErrors[param.id]?.type && (
-                                                <span className="text-red-500 text-xs mt-1 block">This field is required</span>
-                                            )}
-                                        </div>
 
-                                        {/* Field Name Column */}
-                                        <div>
-                                            <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                                {param.type === 'Metadata field' ? 'Metadata Field Name' :
-                                                    param.type === 'String' || param.type === 'Number' || param.type === 'Date' || param.type === 'Boolean' ? 'Parameter Name' :
-                                                        'Field Name'} <span className="text-black">*</span>
-                                            </Label>
-                                            <Input
-                                                value={param.fieldName}
-                                                onChange={(e) => updateInputParameter(param.id, 'fieldName', e.target.value)}
-                                                placeholder={
-                                                    param.type === 'Metadata field' ? 'Enter metadata field name' :
-                                                        param.type === 'String' || param.type === 'Number' || param.type === 'Date' || param.type === 'Boolean' ? 'Enter parameter name' :
-                                                            'Enter field name'
-                                                }
-                                                className="w-full"
-                                                inputSize="lg"
-                                                variant={(parameterErrors[param.id]?.fieldName || parameterErrors[param.id]?.duplicate) ? 'error' : 'default'}
-                                            />
-                                            {parameterErrors[param.id]?.fieldName && (
-                                                <span className="text-red-500 text-xs mt-1 block">This field is required</span>
-                                            )}
-                                            {parameterErrors[param.id]?.duplicate && !parameterErrors[param.id]?.fieldName && (
-                                                <span className="text-red-500 text-xs mt-1 block">Field name must be unique</span>
-                                            )}
-                                        </div>
-
-                                        {/* Field Data Type Column */}
-                                        <div>
-                                            <Label className="text-sm font-medium text-gray-700 mb-2 block">Field Data Type <span className="text-black">*</span></Label>
-                                            <Select
-                                                showSearch
-                                                value={param.dataType || 'String'}
-                                                onChange={(value) => handleDataTypeChange(param.id, param.dataType || 'String', value)}
-                                                placeholder="Select data type"
-                                                className="w-full"
-                                                size="large"
-                                                status={parameterErrors[param.id]?.dataType ? 'error' : undefined}
-                                                options={[
-                                                    { label: 'String', value: 'String' },
-                                                    { label: 'Integer', value: 'Integer' },
-                                                    { label: 'Float', value: 'Float' },
-                                                    { label: 'Boolean', value: 'Boolean' }
-                                                ]}
-                                                filterOption={(input, option) =>
-                                                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                                                }
-                                                popupMatchSelectWidth={false}
-                                                listHeight={256}
-                                            />
-                                            {parameterErrors[param.id]?.dataType && (
-                                                <span className="text-red-500 text-xs mt-1 block">This field is required</span>
-                                            )}
-                                        </div>
-
-                                        {/* Delete Button Column */}
-                                        <div className="flex items-start justify-end pt-8">
-                                            {inputParameters.length > 1 && (
-                                                <Button
-                                                    icon={<CloseOutlined />}
-                                                    onClick={() => removeInputParameter(param.id)}
-                                                    className="delete-param-btn flex items-center justify-center w-9 h-9 border-none text-gray-400 transition-colors rounded-full"
-                                                    type="text"
-                                                />
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Horizontal Line Separator */}
-                                    {index < inputParameters.length - 1 && (
-                                        <div className="border-b border-gray-200 my-4"></div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                        )}
-                    </div>
-
-                    {/* Start Configuration */}
-                    {!isViewMode && (
-                        <div className="flex flex-col items-center py-5">
-                            <p className="text-base font-semibold text-gray-900 mb-4">Start Configuration</p>
-                            <Button
-                                type="primary"
-                                size="large"
-                                onClick={handleStartConfiguration}
-                                disabled={configurationStarted || configurationSteps.length > 0}
-                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none rounded-lg px-8 disabled:bg-gray-300 disabled:text-gray-500"
-                            >
-                                Start
-                            </Button>
-                        </div>
-                    )}
-
-                    {/* Configuration Steps */}
-                    {configurationSteps.length > 0 && (
-                        <>
-                            {/* Vertical Line connecting Start to first Card */}
-                            {!isViewMode && <div className="h-8 w-px bg-gray-300 mx-auto -mt-8"></div>}
-
-                            {configurationSteps.map((step, index) => {
-                                // Check if there's a conditional card in the steps
-                                const hasConditional = configurationSteps.some(s => s.type === 'conditional');
-                                // Add padding if this is not a conditional card and there is a conditional somewhere
-                                const shouldAddPadding = hasConditional && step.type !== 'conditional';
-
-                                return (
-                                <div key={step.id} className="w-full flex justify-center" style={step.type === 'conditional' ? { minWidth: '1600px' } : {}}>
-                                    <div className="w-full" style={step.type !== 'conditional' ? { maxWidth: '800px' } : {}}>
-                                    <RuleConfigurationCard
-                                        step={step}
-                                        inputParameters={inputParameters}
-                                        stepIndex={index}
-                                        configurationSteps={configurationSteps}
-                                        onConfigUpdate={handleConfigUpdate}
-                                        onAddBranchStep={(branch) => handleAddBranchStep(step.id, branch)}
-                                        handleAddBranchStep={handleAddBranchStep}
-                                        isViewMode={isViewMode}
-                                        stepNumber={index + 1}
-                                        allConfigurationSteps={configurationSteps}
-                                    />
-
-                                    {/* Vertical connector line - Don't show after output card or conditional card */}
-                                    {step.type !== 'output' && step.type !== 'conditional' && (
-                                        <div className="h-10 w-px bg-gray-300 mx-auto -mt-6"></div>
-                                    )}
-
-                                    {/* Add Button - Only show for the last card if it's not an output card or conditional card */}
-                                    {!isViewMode && index === configurationSteps.length - 1 && step.type !== 'output' && step.type !== 'conditional' && (
-                                        <div className="flex justify-center mb-8">
-                                            <Button
-                                                type="primary"
-                                                className="border-none px-8 h-10 rounded-md bg-red-500 hover:bg-red-400"
-                                                onClick={() => handleAddStep(index)}
-                                            >
-                                                Add
-                                            </Button>
-                                        </div>
-                                    )}
-
-                                    {/* Connector line to next card if not the last one */}
-                                    {index < configurationSteps.length - 1 && (
-                                        <div className="h-10 w-px bg-gray-300 mx-auto -mt-8"></div>
-                                    )}
-                                    </div>
-                                </div>
-                                );
-                            })}
-
-                            {/* Action Buttons */}
+                            {/* Start Configuration */}
                             {!isViewMode && (
-                                <div className="flex justify-end items-center py-6 gap-3">
+                                <div className="flex flex-col items-center py-5">
+                                    <p className="text-base font-semibold text-gray-900 mb-4">Start Configuration</p>
                                     <Button
                                         type="primary"
                                         size="large"
-                                        onClick={handleSave}
-                                        className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none"
+                                        onClick={handleStartConfiguration}
+                                        disabled={configurationStarted || configurationSteps.length > 0}
+                                        className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none rounded-lg px-8 disabled:bg-gray-300 disabled:text-gray-500"
                                     >
-                                        Save
-                                    </Button>
-                                    <Button
-                                        size="large"
-                                        onClick={() => navigate('/rules')}
-                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                                    >
-                                        Cancel
+                                        Start
                                     </Button>
                                 </div>
                             )}
-                        </>
-                    )}
+
+                            {/* Configuration Steps */}
+                            {configurationSteps.length > 0 && (
+                                <>
+                                    {/* Vertical Line connecting Start to first Card */}
+                                    {!isViewMode && <div className="h-8 w-px bg-gray-300 mx-auto -mt-8"></div>}
+
+                                    {configurationSteps.map((step, index) => {
+                                        // Check if there's a conditional card in the steps
+                                        const hasConditional = configurationSteps.some(s => s.type === 'conditional');
+                                        // Add padding if this is not a conditional card and there is a conditional somewhere
+                                        const shouldAddPadding = hasConditional && step.type !== 'conditional';
+
+                                        return (
+                                            <div key={step.id} className="w-full flex justify-center" style={step.type === 'conditional' ? { minWidth: '1600px' } : {}}>
+                                                <div className="w-full" style={step.type !== 'conditional' ? { maxWidth: '800px' } : {}}>
+                                                    <RuleConfigurationCard
+                                                        step={step}
+                                                        inputParameters={inputParameters}
+                                                        stepIndex={index}
+                                                        configurationSteps={configurationSteps}
+                                                        onConfigUpdate={handleConfigUpdate}
+                                                        onAddBranchStep={(branch) => handleAddBranchStep(step.id, branch)}
+                                                        handleAddBranchStep={handleAddBranchStep}
+                                                        isViewMode={isViewMode}
+                                                        stepNumber={index + 1}
+                                                        allConfigurationSteps={configurationSteps}
+                                                    />
+
+                                                    {/* Vertical connector line - Don't show after output card or conditional card */}
+                                                    {step.type !== 'output' && step.type !== 'conditional' && (
+                                                        <div className="h-10 w-px bg-gray-300 mx-auto -mt-6"></div>
+                                                    )}
+
+                                                    {/* Add Button - Only show for the last card if it's not an output card or conditional card */}
+                                                    {!isViewMode && index === configurationSteps.length - 1 && step.type !== 'output' && step.type !== 'conditional' && (
+                                                        <div className="flex justify-center mb-8">
+                                                            <Button
+                                                                type="primary"
+                                                                className="border-none px-8 h-10 rounded-md bg-red-500 hover:bg-red-400"
+                                                                onClick={() => handleAddStep(index)}
+                                                            >
+                                                                Add
+                                                            </Button>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Connector line to next card if not the last one */}
+                                                    {index < configurationSteps.length - 1 && (
+                                                        <div className="h-10 w-px bg-gray-300 mx-auto -mt-8"></div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {/* Action Buttons */}
+                                    {!isViewMode && (
+                                        <div className="flex justify-end items-center py-6 gap-3">
+                                            <Button
+                                                type="primary"
+                                                size="large"
+                                                onClick={handleSave}
+                                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none"
+                                            >
+                                                Save
+                                            </Button>
+                                            <Button
+                                                size="large"
+                                                onClick={() => navigate('/rules')}
+                                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                            >
+                                                Cancel
+                                            </Button>
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

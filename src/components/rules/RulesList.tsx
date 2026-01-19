@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Table, Dropdown, Space, Pagination, Tooltip } from 'antd';
-import { SearchOutlined, FilterOutlined, DownOutlined, PlusOutlined } from '@ant-design/icons';
+import { Button, Table, Dropdown, Space, Pagination, Tooltip, message, Spin } from 'antd';
+import { SearchOutlined, FilterOutlined, DownOutlined, PlusOutlined, LoadingOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { MenuProps } from 'antd';
 import CreateRuleModal from './CreateRuleModal';
-import { addRule, getRules } from '../../data/rules';
+import { rulesService } from '../../services/rules.service';
 import { Input } from '../ui/input';
 
 // Type definitions for table display
@@ -16,7 +16,7 @@ interface TableRule {
     description: string;
     version: string;
     author: string;
-    status: 'WIP' | 'Test' | 'Pending' | 'Production';
+    status: 'WIP' | 'TEST' | 'PENDING' | 'PROD';
     mappingCount: number;
     type: 'static' | 'dynamic';
 }
@@ -24,42 +24,62 @@ interface TableRule {
 export default function RulesList() {
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState('');
+    const [searchInput, setSearchInput] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedRuleType, setSelectedRuleType] = useState<'static' | 'dynamic' | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [rules, setRules] = useState<TableRule[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [creating, setCreating] = useState(false);
+    const [selectedStatus, setSelectedStatus] = useState<'WIP' | 'TEST' | 'PENDING' | 'PROD' | null>(null);
     const pageSize = 10;
 
-    // Load rules from data store on mount and when returning from navigation
+    // Debounce search input
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setSearchQuery(searchInput);
+        }, 500); // 500ms debounce
+
+        return () => clearTimeout(timer);
+    }, [searchInput]);
+
+    // Load rules from API when search query or status filter changes
     useEffect(() => {
         loadRules();
+        setCurrentPage(1);
+    }, [searchQuery, selectedStatus]);
 
-        // Reload rules when window gets focus (user returns from create page)
+    // Reload rules when window gets focus (user returns from create page)
+    useEffect(() => {
         const handleFocus = () => loadRules();
         window.addEventListener('focus', handleFocus);
 
         return () => window.removeEventListener('focus', handleFocus);
     }, []);
 
-    // Reset to first page when search query changes
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [searchQuery]);
-
-    const loadRules = () => {
-        const rulesData = getRules();
-        const tableRules: TableRule[] = rulesData.map(rule => ({
-            key: rule.id.toString(),
-            id: rule.id,
-            name: rule.name,
-            description: rule.description,
-            version: `${rule.version.major}.${rule.version.minor}`,
-            author: rule.author || 'Unknown',
-            status: rule.status,
-            mappingCount: rule.mappingCount,
-            type: rule.type
-        }));
-        setRules(tableRules);
+    const loadRules = async () => {
+        try {
+            setLoading(true);
+            // Pass search query and status filter to API
+            const rulesData = await rulesService.getRules(1, 100, searchQuery || undefined, selectedStatus || undefined);
+            const tableRules: TableRule[] = rulesData.map(rule => ({
+                key: rule.id.toString(),
+                id: rule.id,
+                name: rule.name,
+                description: rule.description,
+                version: `${rule.version.major}.${rule.version.minor}`,
+                author: rule.author || 'Unknown',
+                status: rule.status,
+                mappingCount: rule.mappingCount,
+                type: rule.type
+            }));
+            setRules(tableRules);
+        } catch (error) {
+            console.error('Failed to load rules:', error);
+            message.error('Failed to load rules. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     // Dropdown menu items
@@ -94,39 +114,43 @@ export default function RulesList() {
         setSelectedRuleType(null);
     };
 
-    const handleRuleCreate = (data: { name: string; description: string }) => {
+    const handleRuleCreate = async (data: { name: string; description: string }) => {
         if (selectedRuleType) {
-            // Add rule to the rules array in rules.ts
-            const newRule = addRule({
-                name: data.name,
-                description: data.description,
-                type: selectedRuleType,
-                author: ''
-            });
+            try {
+                setCreating(true);
+                // Create rule via API
+                const newRule = await rulesService.addRule({
+                    name: data.name,
+                    description: data.description,
+                    type: selectedRuleType,
+                    author: ''
+                });
 
-            // Reload rules list
-            loadRules();
+                message.success('Rule created successfully!');
 
-            // Close modal and reset state
-            setIsModalOpen(false);
-            setSelectedRuleType(null);
+                // Reload rules list
+                await loadRules();
 
-            // Navigate to the rule configuration page
-            navigate(`/rule/create/${newRule.id}`);
+                // Close modal and reset state
+                setIsModalOpen(false);
+                setSelectedRuleType(null);
+
+                // Navigate to the rule configuration page
+                navigate(`/rule/create/${newRule.id}`);
+            } catch (error: any) {
+                console.error('Failed to create rule:', error);
+                const errorMessage = error?.response?.data?.error || 'Failed to create rule. Please try again.';
+                message.error(errorMessage);
+            } finally {
+                setCreating(false);
+            }
         }
     };
 
-    // Filter rules based on search query
-    const filteredRules = rules.filter(rule =>
-        rule.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        rule.id.toString().includes(searchQuery) ||
-        rule.description.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    // Calculate paginated data
+    // Calculate paginated data (API already filtered by search)
     const startIndex = (currentPage - 1) * pageSize;
     const endIndex = startIndex + pageSize;
-    const paginatedRules = filteredRules.slice(startIndex, endIndex);
+    const paginatedRules = rules.slice(startIndex, endIndex);
 
     // Table columns definition
     const columns: ColumnsType<TableRule> = [
@@ -226,18 +250,90 @@ export default function RulesList() {
                         <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10" />
                         <Input
                             placeholder="Search by Rule ID, Name and Description"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            value={searchInput}
+                            onChange={(e) => setSearchInput(e.target.value)}
                             className="pl-10 rounded-lg"
                         />
                     </div>
 
                     <Space size="middle">
-                        {/* Filter Button */}
-                        <Button
-                            icon={<FilterOutlined />}
-                            className="rounded-lg border-gray-200 hover:border-red-500 hover:text-red-500 focus:border-red-500 focus:text-red-500"
-                        />
+                        {/* Status Filter Dropdown */}
+                        <Dropdown
+                            menu={{
+                                items: [
+                                    {
+                                        key: 'all',
+                                        label: (
+                                            <div className="px-2 py-1">
+                                                <span className="text-gray-700">All Status</span>
+                                            </div>
+                                        ),
+                                    },
+                                    {
+                                        type: 'divider',
+                                    },
+                                    {
+                                        key: 'WIP',
+                                        label: (
+                                            <div className="px-2 py-1">
+                                                <span className="text-gray-700">WIP</span>
+                                            </div>
+                                        ),
+                                    },
+                                    {
+                                        key: 'TEST',
+                                        label: (
+                                            <div className="px-2 py-1">
+                                                <span className="text-gray-700">TEST</span>
+                                            </div>
+                                        ),
+                                    },
+                                    {
+                                        key: 'PENDING',
+                                        label: (
+                                            <div className="px-2 py-1">
+                                                <span className="text-gray-700">PENDING</span>
+                                            </div>
+                                        ),
+                                    },
+                                    {
+                                        key: 'PROD',
+                                        label: (
+                                            <div className="px-2 py-1">
+                                                <span className="text-gray-700">PROD</span>
+                                            </div>
+                                        ),
+                                    },
+                                ],
+                                onClick: ({ key }) => {
+                                    if (key === 'all') {
+                                        setSelectedStatus(null);
+                                    } else {
+                                        setSelectedStatus(key as 'WIP' | 'TEST' | 'PENDING' | 'PROD');
+                                    }
+                                },
+                                className: 'min-w-[140px]'
+                            }}
+                            trigger={['click']}
+                            placement="bottomRight"
+                        >
+                            <Button
+                                icon={<FilterOutlined />}
+                                className="rounded-lg border-gray-200 hover:border-red-500 hover:text-red-500 focus:border-red-500 focus:text-red-500"
+                            >
+                                {selectedStatus ? (
+                                    <span className="ml-1">
+                                        {selectedStatus === 'WIP' ? 'WIP' :
+                                            selectedStatus === 'TEST' ? 'TEST' :
+                                                selectedStatus === 'PENDING' ? 'PENDING' :
+                                                    selectedStatus === 'PROD' ? 'PROD' : ''}
+                                    </span>
+                                ) : (
+                                    <span className="ml-1">Filter</span>
+                                )}
+                                <DownOutlined className="ml-2 text-xs" />
+                            </Button>
+                        </Dropdown>
 
                         {/* Create Rule Dropdown */}
                         <Dropdown
@@ -265,36 +361,38 @@ export default function RulesList() {
             {/* Rules Table */}
             <div className="px-8 pb-8">
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                    <Table
-                        columns={columns}
-                        dataSource={paginatedRules}
-                        pagination={false}
-                        rowClassName="hover:bg-gray-50/50 cursor-pointer"
-                        className="rules-table"
-                        onRow={(record) => ({
-                            onClick: () => navigate(`/rule/create/${record.id}`),
-                        })}
-                        locale={{
-                            emptyText: (
-                                <div className="py-12 text-center">
-                                    <div className="text-gray-400 mb-2">
-                                        <svg className="w-16 h-16 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
+                    <Spin spinning={loading} indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />}>
+                        <Table
+                            columns={columns}
+                            dataSource={paginatedRules}
+                            pagination={false}
+                            rowClassName="hover:bg-gray-50/50 cursor-pointer"
+                            className="rules-table"
+                            onRow={(record) => ({
+                                onClick: () => navigate(`/rule/create/${record.id}`),
+                            })}
+                            locale={{
+                                emptyText: (
+                                    <div className="py-12 text-center">
+                                        <div className="text-gray-400 mb-2">
+                                            <svg className="w-16 h-16 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                        </div>
+                                        <p className="text-lg font-medium text-gray-900 mb-1">No rules found</p>
                                     </div>
-                                    <p className="text-lg font-medium text-gray-900 mb-1">No rules found</p>
-                                </div>
-                            )
-                        }}
-                    />
+                                )
+                            }}
+                        />
+                    </Spin>
                 </div>
 
                 {/* Custom Pagination */}
-                {filteredRules.length > 0 && (
+                {rules.length > 0 && (
                     <div className="flex justify-end mt-6">
                         <Pagination
                             current={currentPage}
-                            total={filteredRules.length}
+                            total={rules.length}
                             pageSize={pageSize}
                             onChange={(page) => setCurrentPage(page)}
                             showSizeChanger={false}
@@ -310,6 +408,7 @@ export default function RulesList() {
                 ruleType={selectedRuleType}
                 onClose={handleModalClose}
                 onSubmit={handleRuleCreate}
+                loading={creating}
             />
         </div>
     );
