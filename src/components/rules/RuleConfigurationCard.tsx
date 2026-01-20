@@ -123,7 +123,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
             );
 
             return (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative" style={{ maxWidth: '800px', margin: '0 auto' }}>
+                <div className="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative" style={{ maxWidth: '800px', margin: '0 auto' }}>
                     {/* Step Number Badge - Top Right Corner */}
                     <div className="absolute top-3 right-3 px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">
                         {stepNumberText}
@@ -150,17 +150,19 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                             // Build options for Type dropdown
                             const typeOptions = [
                                 ...inputParameters.map(p => ({
-                                    label: p.fieldName,
-                                    value: p.name
+                                    label: <div title={p.fieldName} className="truncate">{p.fieldName}</div>,
+                                    value: p.name,
+                                    searchLabel: p.fieldName
                                 })),
                                 ...configurationSteps
                                     .slice(0, stepIndex)
                                     .filter(s => s.type === 'subfunction' && s.config?.outputVariable)
                                     .map((s) => ({
-                                        label: s.config.outputVariable,
-                                        value: s.config.outputVariable
+                                        label: <div title={s.config.outputVariable} className="truncate">{s.config.outputVariable}</div>,
+                                        value: s.config.outputVariable,
+                                        searchLabel: s.config.outputVariable
                                     })),
-                                { label: 'Static Value', value: 'Static Value' }
+                                { label: 'Static Value', value: 'Static Value', searchLabel: 'Static Value' }
                             ];
 
                             return (
@@ -176,10 +178,10 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                                         className="w-full"
                                         size="large"
                                         options={typeOptions}
-                                        filterOption={(input, option) =>
-                                            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                        filterOption={(input, option: any) =>
+                                            (option?.searchLabel ?? '').toLowerCase().includes(input.toLowerCase())
                                         }
-                                        popupMatchSelectWidth={false}
+                                        popupMatchSelectWidth={true}
                                         listHeight={256}
                                         disabled={isViewMode}
                                     />

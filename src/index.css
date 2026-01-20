@@ -113,6 +113,11 @@ body {
   padding: 0 !important;
 }
 
+/* Override Ant Design large select height */
+:where(.css-dev-only-do-not-override-mncuj7).ant-select-single.ant-select-lg {
+  height: 42px !important;
+}
+
 /* Large Input Fields */
 .ant-input-lg,
 .ant-input-affix-wrapper-lg {

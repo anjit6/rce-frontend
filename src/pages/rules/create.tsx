@@ -128,7 +128,7 @@ export default function RuleCreatePage() {
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
     const [configurationSteps, setConfigurationSteps] = useState<ConfigurationStep[]>([]);
     const [inputParameters, setInputParameters] = useState<InputParameter[]>([
-        { id: '1', name: 'Input Parameter 1', fieldName: '', type: 'Input field', dataType: 'String' }
+        { id: '1', name: 'Input Parameter 1', fieldName: '', type: 'Variable Data Field', dataType: 'String' }
     ]);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeAccordionKeys, setActiveAccordionKeys] = useState<string[]>([]);
@@ -638,6 +638,29 @@ export default function RuleCreatePage() {
     };
 
     const handleSave = () => {
+        // Validation: Verify if an Output Card exists (recursively check in conditionals)
+        const hasOutputStepRecursive = (steps: ConfigurationStep[]): boolean => {
+            return steps.some(step => {
+                if (step.type === 'output') return true;
+                if (step.type === 'conditional' && step.config?.next) {
+                    return hasOutputStepRecursive(step.config.next.true || []) ||
+                        hasOutputStepRecursive(step.config.next.false || []);
+                }
+                return false;
+            });
+        };
+
+        const hasOutputStep = hasOutputStepRecursive(configurationSteps);
+
+        if (!hasOutputStep) {
+            Modal.error({
+                title: 'Missing Output Card',
+                content: 'Please add an Output Card before saving the configuration.',
+                okText: 'OK',
+                centered: true
+            });
+            return;
+        }
         // Generate the ruleFunction JSON structure
         const ruleFunction = {
             id: Date.now(), // Generate unique ID
@@ -1219,7 +1242,7 @@ export default function RuleCreatePage() {
             onOk() {
                 // Reset all state
                 setInputParameters([
-                    { id: '1', name: 'Input Parameter 1', fieldName: '', type: 'Input field', dataType: 'String' }
+                    { id: '1', name: 'Input Parameter 1', fieldName: '', type: 'Variable Data Field', dataType: 'String' }
                 ]);
                 setConfigurationSteps([]);
                 setConfigurationStarted(false);
@@ -1410,9 +1433,9 @@ export default function RuleCreatePage() {
                                                             size="large"
                                                             status={parameterErrors[param.id]?.type ? 'error' : undefined}
                                                             options={[
-                                                                { label: 'Input field', value: 'Input field' },
+                                                                { label: 'Variable Data Field', value: 'VD Field' },
                                                                 { label: 'Metadata field', value: 'Metadata field' },
-                                                                { label: 'String', value: 'String' }
+                                                                { label: 'Fixed Field', value: 'Fixed Field' }
                                                             ]}
                                                             filterOption={(input, option) =>
                                                                 (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
@@ -1428,17 +1451,25 @@ export default function RuleCreatePage() {
                                                     {/* Field Name Column */}
                                                     <div>
                                                         <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                                            {param.type === 'Metadata field' ? 'Metadata Field Name' :
-                                                                param.type === 'String' || param.type === 'Number' || param.type === 'Date' || param.type === 'Boolean' ? 'Parameter Name' :
-                                                                    'Field Name'} <span className="text-black">*</span>
+                                                            {param.type === 'Metadata field'
+                                                                ? 'Metadata Field Name'
+                                                                : param.type === 'VD Field'
+                                                                    ? 'Variable Data Field Name'
+                                                                    : param.type === 'Fixed Field'
+                                                                        ? 'Fixed Field Name'
+                                                                        : 'Variable Data Field Name'}  <span className="text-black">*</span>
                                                         </Label>
                                                         <Input
                                                             value={param.fieldName}
                                                             onChange={(e) => updateInputParameter(param.id, 'fieldName', e.target.value)}
                                                             placeholder={
-                                                                param.type === 'Metadata field' ? 'Enter metadata field name' :
-                                                                    param.type === 'String' || param.type === 'Number' || param.type === 'Date' || param.type === 'Boolean' ? 'Enter parameter name' :
-                                                                        'Enter field name'
+                                                                param.type === 'Metadata field'
+                                                                    ? 'Enter metadata field name'
+                                                                    : param.type === 'VD Field'
+                                                                        ? 'Enter Variable Data Field name'
+                                                                        : param.type === 'Fixed Field'
+                                                                            ? 'Enter fixed field name'
+                                                                            : 'Enter Variable Data Field name'
                                                             }
                                                             className="w-full"
                                                             inputSize="lg"
