@@ -5,6 +5,30 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import OutputCard from './OutputCard';
 import ConditionalCard from './ConditionalCard';
+import { DataType } from '../../types/subfunction';
+
+// Helper function to check if input data type matches expected data type
+const isDataTypeCompatible = (expectedType: DataType, selectedType: string): boolean => {
+    // ANY type accepts all data types
+    if (expectedType === 'ANY') return true;
+
+    // Direct match
+    if (expectedType === selectedType) return true;
+
+    return false;
+};
+
+// Helper function to get user-friendly data type name
+const getDataTypeName = (dataType: DataType | string): string => {
+    const typeMap: { [key: string]: string } = {
+        'STRING': 'String',
+        'NUMBER': 'Number',
+        'BOOLEAN': 'Boolean',
+        'DATE': 'Date',
+        'ANY': 'Any'
+    };
+    return typeMap[dataType] || dataType;
+};
 
 // Helper function to collect all output variable names from steps (including nested conditionals)
 const collectAllOutputVariables = (steps: ConfigurationStep[], excludeStepId?: string): string[] => {
@@ -186,30 +210,44 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                                         disabled={isViewMode}
                                     />
                                     {paramConfig.type === 'Static Value' && (
-                                        <div className="mt-2 space-y-2">
-                                            <Select
-                                                value={paramConfig.dataType || undefined}
-                                                onChange={(value) => handleParamDataTypeChange(idx, value)}
-                                                placeholder="Select data type"
-                                                className="w-full"
-                                                size="large"
-                                                options={[
-                                                    { label: 'String', value: 'STRING' },
-                                                    { label: 'Number', value: 'NUMBER' },
-                                                    { label: 'Boolean', value: 'BOOLEAN' },
-                                                    { label: 'Date', value: 'DATE' }
-                                                ]}
-                                                disabled={isViewMode}
-                                            />
-                                            <Input
-                                                value={paramConfig.value || ''}
-                                                onChange={(e) => handleParamValueChange(idx, e.target.value)}
-                                                placeholder="Enter static value"
-                                                className="w-full"
-                                                inputSize="lg"
-                                                disabled={isViewMode}
-                                            />
-                                        </div>
+                                        (() => {
+                                            const expectedDataType = param.dataType;
+                                            const selectedDataType = paramConfig.dataType;
+                                            const hasDataTypeMismatch = selectedDataType && !isDataTypeCompatible(expectedDataType, selectedDataType);
+
+                                            return (
+                                                <div className="mt-2 space-y-2">
+                                                    <Select
+                                                        value={paramConfig.dataType || undefined}
+                                                        onChange={(value) => handleParamDataTypeChange(idx, value)}
+                                                        placeholder="Select data type"
+                                                        className="w-full"
+                                                        size="large"
+                                                        status={hasDataTypeMismatch ? 'error' : undefined}
+                                                        options={[
+                                                            { label: 'String', value: 'STRING' },
+                                                            { label: 'Number', value: 'NUMBER' },
+                                                            { label: 'Boolean', value: 'BOOLEAN' },
+                                                            { label: 'Date', value: 'DATE' }
+                                                        ]}
+                                                        disabled={isViewMode}
+                                                    />
+                                                    {hasDataTypeMismatch && (
+                                                        <span className="text-red-500 text-xs">
+                                                            Expected {getDataTypeName(expectedDataType)} but got {getDataTypeName(selectedDataType)}
+                                                        </span>
+                                                    )}
+                                                    <Input
+                                                        value={paramConfig.value || ''}
+                                                        onChange={(e) => handleParamValueChange(idx, e.target.value)}
+                                                        placeholder="Enter static value"
+                                                        className="w-full"
+                                                        inputSize="lg"
+                                                        disabled={isViewMode}
+                                                    />
+                                                </div>
+                                            );
+                                        })()
                                     )}
                                 </div>
                             );
