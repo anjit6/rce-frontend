@@ -898,10 +898,7 @@ export default function RuleCreatePage() {
                 okText: 'OK',
                 centered: true,
                 icon: null,
-                cancelButtonProps: { style: { display: 'none' } },
-                onOk() {
-                    navigate('/rules');
-                }
+                cancelButtonProps: { style: { display: 'none' } }
             });
         } catch (error) {
             console.error('Failed to save configuration:', error);
