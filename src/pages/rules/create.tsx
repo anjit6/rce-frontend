@@ -637,6 +637,159 @@ export default function RuleCreatePage() {
         setHasUnsavedChanges(true); // Mark as changed
     };
 
+    // Shared helper function to recursively process all steps including nested conditionals
+    const processStepsRecursively = (steps: ConfigurationStep[], parentNext: string | null = null, stepCounter = { count: 0 }): any[] => {
+        const allSteps: any[] = [];
+
+        steps.forEach((step, index) => {
+            const stepId = step.id;
+            const nextStep = index < steps.length - 1 ? steps[index + 1].id : parentNext;
+            stepCounter.count++;
+
+            if (step.type === 'subfunction') {
+                const subfunc = SUBFUNCTIONS.find(f => f.id === step.subfunctionId);
+                const config = step.config || {};
+                const inputParams = (config.params || []).map((paramConfig: any, paramIdx: number) => {
+                    let dataValue = '';
+                    let dataType = '';
+
+                    if (paramConfig.type === 'Static Value') {
+                        dataType = 'static';
+                        dataValue = paramConfig.value || '';
+                    } else if (paramConfig.type?.startsWith('Input Parameter')) {
+                        dataType = 'inputParam';
+                        const matchedParam = inputParameters.find(p => p.name === paramConfig.type);
+                        dataValue = matchedParam?.fieldName || '';
+                    } else {
+                        dataType = 'stepOutputVariable';
+                        dataValue = paramConfig.type || '';
+                    }
+
+                    return {
+                        subFuncParamId: String(paramIdx + 1),
+                        data: {
+                            type: dataType,
+                            value: dataValue
+                        }
+                    };
+                });
+
+                allSteps.push({
+                    id: stepId,
+                    type: "subFunction",
+                    outputVariableName: config.outputVariable || `step_${stepCounter.count}_output_variable`,
+                    returnType: subfunc?.returnType?.toLowerCase() || "string",
+                    subFunction: {
+                        id: subfunc?.functionName || String(step.subfunctionId),
+                        inputParams
+                    },
+                    next: nextStep
+                });
+            } else if (step.type === 'conditional') {
+                const config = step.config || {};
+                const conditions = (config.conditions || []).map((cond: any) => {
+                    const processConditionData = (data: any) => {
+                        if (!data) return { type: 'static', value: '', dataType: 'String' };
+
+                        if (data.type === 'static' || data.type === 'Static Value') {
+                            return {
+                                type: 'static',
+                                value: data.value || '',
+                                dataType: data.dataType || 'String'
+                            };
+                        } else if (data.type?.startsWith('Input Parameter')) {
+                            const matchedParam = inputParameters.find(p => p.name === data.type);
+                            return {
+                                type: 'inputParam',
+                                value: matchedParam?.fieldName || '',
+                                dataType: data.dataType || 'String'
+                            };
+                        } else {
+                            return {
+                                type: 'stepOutputVariable',
+                                value: data.type || data.value || '',
+                                dataType: data.dataType || 'String'
+                            };
+                        }
+                    };
+
+                    return {
+                        id: cond.id,
+                        sequence: cond.sequence,
+                        andOr: cond.andOr,
+                        lhs: processConditionData(cond.lhs),
+                        operator: cond.operator,
+                        rhs: processConditionData(cond.rhs)
+                    };
+                });
+
+                let trueNext: string | null = null;
+                let falseNext: string | null = null;
+
+                if (config.next) {
+                    if (config.next.true && Array.isArray(config.next.true) && config.next.true.length > 0) {
+                        trueNext = config.next.true[0].id;
+                        const trueSteps = processStepsRecursively(config.next.true, nextStep, stepCounter);
+                        allSteps.push(...trueSteps);
+                    } else {
+                        trueNext = nextStep;
+                    }
+
+                    if (config.next.false && Array.isArray(config.next.false) && config.next.false.length > 0) {
+                        falseNext = config.next.false[0].id;
+                        const falseSteps = processStepsRecursively(config.next.false, nextStep, stepCounter);
+                        allSteps.push(...falseSteps);
+                    } else {
+                        falseNext = nextStep;
+                    }
+                }
+
+                allSteps.push({
+                    id: stepId,
+                    type: "condition",
+                    outputVariableName: null,
+                    returnType: "boolean",
+                    conditions: conditions,
+                    next: {
+                        true: trueNext,
+                        false: falseNext
+                    }
+                });
+            } else if (step.type === 'output') {
+                const outputConfig = step.config || {};
+                let outputValue = '';
+                let outputType = outputConfig.type || '';
+
+                if (outputConfig.type === 'stepOutputVariable') {
+                    outputValue = outputConfig.value || '';
+                } else if (outputConfig.type === 'inputParam') {
+                    const matchedParam = inputParameters.find(p => p.name === outputConfig.value);
+                    outputValue = matchedParam?.fieldName || '';
+                } else if (outputConfig.type === 'static') {
+                    outputValue = outputConfig.staticValue || '';
+                }
+
+                allSteps.push({
+                    id: stepId,
+                    type: "output",
+                    outputVariableName: null,
+                    returnType: outputConfig.dataType?.toLowerCase() || "any",
+                    data: {
+                        responseType: outputConfig.responseType || 'success',
+                        type: outputType,
+                        dataType: outputConfig.dataType?.toLowerCase() || "",
+                        value: outputValue,
+                        errorCode: outputConfig.errorCode || '',
+                        errorMessage: outputConfig.errorMessage || ''
+                    },
+                    next: null
+                });
+            }
+        });
+
+        return allSteps;
+    };
+
     const handleSave = () => {
         // Validation: Verify if an Output Card exists (recursively check in conditionals)
         const hasOutputStepRecursive = (steps: ConfigurationStep[]): boolean => {
@@ -663,107 +816,21 @@ export default function RuleCreatePage() {
         }
         // Generate the ruleFunction JSON structure
         const ruleFunction = {
-            id: Date.now(), // Generate unique ID
-            code: "", // Will be generated below
-            returnType: "string", // Default, can be determined from output step
+            id: Date.now(),
+            code: "",
+            returnType: "string",
             ruleId: rule?.id || "",
             inputParams: inputParameters.map((param, index) => ({
                 id: parseInt(param.id),
                 sequence: index + 1,
-                name: param.fieldName, // The field name entered by user
+                name: param.fieldName,
                 dataType: param.dataType?.toLowerCase() || "string",
-                paramType: "inputField", // Always inputField for input parameters
+                paramType: "inputField",
                 mandatory: "true",
                 default: "",
                 description: ""
             })),
-            steps: configurationSteps.map((step, index) => {
-                const stepId = step.id;
-                const nextStep = index < configurationSteps.length - 1 ? configurationSteps[index + 1].id : null;
-
-                if (step.type === 'subfunction') {
-                    const subfunc = SUBFUNCTIONS.find(f => f.id === step.subfunctionId);
-                    const config = step.config || {};
-                    const inputParams = (config.params || []).map((paramConfig: any, paramIdx: number) => {
-                        let dataValue = '';
-                        let dataType = '';
-
-                        if (paramConfig.type === 'Static Value') {
-                            dataType = 'static';
-                            dataValue = paramConfig.value || '';
-                        } else if (paramConfig.type?.startsWith('Input Parameter')) {
-                            dataType = 'inputParam';
-                            // Find the matching input parameter and use its fieldName for compilation
-                            const matchedParam = inputParameters.find(p => p.name === paramConfig.type);
-                            dataValue = matchedParam?.fieldName || '';
-                        } else {
-                            dataType = 'stepOutputVariable';
-                            // For step output variables, the value would be the variable name
-                            dataValue = paramConfig.type || '';
-                        }
-
-                        return {
-                            subFuncParamId: String(paramIdx + 1),
-                            data: {
-                                type: dataType,
-                                value: dataValue
-                            }
-                        };
-                    });
-
-                    return {
-                        id: stepId,
-                        type: "subFunction",
-                        outputVariableName: config.outputVariable || `step_${index + 1}_output_variable`,
-                        returnType: subfunc?.returnType?.toLowerCase() || "string",
-                        subFunction: {
-                            id: subfunc?.functionName || String(step.subfunctionId),
-                            inputParams
-                        },
-                        next: nextStep
-                    };
-                } else if (step.type === 'conditional') {
-                    return {
-                        id: stepId,
-                        type: "condition",
-                        outputVariableName: null,
-                        returnType: "boolean",
-                        conditions: [], // Will be populated with condition data
-                        next: {
-                            true: nextStep,
-                            false: null
-                        }
-                    };
-                } else if (step.type === 'output') {
-                    const outputConfig = step.config || {};
-                    let outputValue = '';
-                    let outputType = outputConfig.type || '';
-
-                    if (outputConfig.type === 'stepOutputVariable') {
-                        outputValue = outputConfig.value || '';
-                    } else if (outputConfig.type === 'inputParam') {
-                        const matchedParam = inputParameters.find(p => p.name === outputConfig.value);
-                        outputValue = matchedParam?.fieldName || '';
-                    } else if (outputConfig.type === 'static') {
-                        outputValue = outputConfig.value || '';
-                    }
-
-                    return {
-                        id: stepId,
-                        type: "output",
-                        outputVariableName: null,
-                        returnType: outputConfig.dataType?.toLowerCase() || "any",
-                        data: {
-                            type: outputType,
-                            dataType: outputConfig.dataType?.toLowerCase() || "",
-                            value: outputValue
-                        },
-                        next: null
-                    };
-                }
-
-                return null;
-            }).filter(Boolean)
+            steps: processStepsRecursively(configurationSteps)
         };
 
         // Generate JavaScript code from the rule function
@@ -865,79 +932,7 @@ export default function RuleCreatePage() {
                     default: "",
                     description: ""
                 })),
-                steps: configurationSteps.map((step, index) => {
-                    const stepId = step.id;
-                    const nextStep = index < configurationSteps.length - 1 ? configurationSteps[index + 1].id : null;
-
-                    if (step.type === 'subfunction') {
-                        const subfunc = SUBFUNCTIONS.find(f => f.id === step.subfunctionId);
-                        const config = step.config || {};
-                        const inputParams = (config.params || []).map((paramConfig: any, paramIdx: number) => {
-                            let dataValue = '';
-                            let dataType = '';
-
-                            if (paramConfig.type === 'Static Value') {
-                                dataType = 'static';
-                                dataValue = paramConfig.value || '';
-                            } else if (paramConfig.type?.startsWith('Input Parameter')) {
-                                dataType = 'inputParam';
-                                const matchedParam = inputParameters.find(p => p.name === paramConfig.type);
-                                dataValue = matchedParam?.fieldName || '';
-                            } else {
-                                dataType = 'stepOutputVariable';
-                                dataValue = paramConfig.type || '';
-                            }
-
-                            return {
-                                subFuncParamId: String(paramIdx + 1),
-                                data: {
-                                    type: dataType,
-                                    value: dataValue
-                                }
-                            };
-                        });
-
-                        return {
-                            id: stepId,
-                            type: "subFunction",
-                            outputVariableName: config.outputVariable || `step_${index + 1}_output_variable`,
-                            returnType: subfunc?.returnType?.toLowerCase() || "string",
-                            subFunction: {
-                                id: subfunc?.functionName || String(step.subfunctionId),
-                                inputParams
-                            },
-                            next: nextStep
-                        };
-                    } else if (step.type === 'output') {
-                        const outputConfig = step.config || {};
-                        let outputValue = '';
-                        let outputType = outputConfig.type || '';
-
-                        if (outputConfig.type === 'stepOutputVariable') {
-                            outputValue = outputConfig.value || '';
-                        } else if (outputConfig.type === 'inputParam') {
-                            const matchedParam = inputParameters.find(p => p.name === outputConfig.value);
-                            outputValue = matchedParam?.fieldName || '';
-                        } else if (outputConfig.type === 'static') {
-                            outputValue = outputConfig.value || '';
-                        }
-
-                        return {
-                            id: stepId,
-                            type: "output",
-                            outputVariableName: null,
-                            returnType: outputConfig.dataType?.toLowerCase() || "any",
-                            data: {
-                                type: outputType,
-                                dataType: outputConfig.dataType?.toLowerCase() || "",
-                                value: outputValue
-                            },
-                            next: null
-                        };
-                    }
-
-                    return null;
-                }).filter(Boolean)
+                steps: processStepsRecursively(configurationSteps)
             };
 
             // Compile the rule to JavaScript
@@ -1009,79 +1004,7 @@ export default function RuleCreatePage() {
                     default: "",
                     description: ""
                 })),
-                steps: configurationSteps.map((step, index) => {
-                    const stepId = step.id;
-                    const nextStep = index < configurationSteps.length - 1 ? configurationSteps[index + 1].id : null;
-
-                    if (step.type === 'subfunction') {
-                        const subfunc = SUBFUNCTIONS.find(f => f.id === step.subfunctionId);
-                        const config = step.config || {};
-                        const inputParams = (config.params || []).map((paramConfig: any, paramIdx: number) => {
-                            let dataValue = '';
-                            let dataType = '';
-
-                            if (paramConfig.type === 'Static Value') {
-                                dataType = 'static';
-                                dataValue = paramConfig.value || '';
-                            } else if (paramConfig.type?.startsWith('Input Parameter')) {
-                                dataType = 'inputParam';
-                                const matchedParam = inputParameters.find(p => p.name === paramConfig.type);
-                                dataValue = matchedParam?.fieldName || '';
-                            } else {
-                                dataType = 'stepOutputVariable';
-                                dataValue = paramConfig.type || '';
-                            }
-
-                            return {
-                                subFuncParamId: String(paramIdx + 1),
-                                data: {
-                                    type: dataType,
-                                    value: dataValue
-                                }
-                            };
-                        });
-
-                        return {
-                            id: stepId,
-                            type: "subFunction",
-                            outputVariableName: config.outputVariable || `step_${index + 1}_output_variable`,
-                            returnType: subfunc?.returnType?.toLowerCase() || "string",
-                            subFunction: {
-                                id: subfunc?.functionName || String(step.subfunctionId),
-                                inputParams
-                            },
-                            next: nextStep
-                        };
-                    } else if (step.type === 'output') {
-                        const outputConfig = step.config || {};
-                        let outputValue = '';
-                        let outputType = outputConfig.type || '';
-
-                        if (outputConfig.type === 'stepOutputVariable') {
-                            outputValue = outputConfig.value || '';
-                        } else if (outputConfig.type === 'inputParam') {
-                            const matchedParam = inputParameters.find(p => p.name === outputConfig.value);
-                            outputValue = matchedParam?.fieldName || '';
-                        } else if (outputConfig.type === 'static') {
-                            outputValue = outputConfig.value || '';
-                        }
-
-                        return {
-                            id: stepId,
-                            type: "output",
-                            outputVariableName: null,
-                            returnType: outputConfig.dataType?.toLowerCase() || "any",
-                            data: {
-                                type: outputType,
-                                dataType: outputConfig.dataType?.toLowerCase() || "",
-                                value: outputValue
-                            },
-                            next: null
-                        };
-                    }
-
-                    return null;
-                }).filter(Boolean)
+                steps: processStepsRecursively(configurationSteps)
             };
 
             // Compile the rule to JavaScript

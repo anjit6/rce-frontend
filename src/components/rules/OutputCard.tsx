@@ -17,7 +17,7 @@ interface OutputCardProps {
 }
 
 export default function OutputCard({ step, inputParameters, configurationSteps, stepIndex, onConfigUpdate, isViewMode = false, stepNumber, conditionStepNumber }: OutputCardProps) {
-    const config = step.config || { responseType: 'success', type: '', dataType: '', value: '', staticValue: '', errorMessage: '' };
+    const config = step.config || { responseType: 'success', type: '', dataType: '', value: '', staticValue: '', errorMessage: '', errorCode: '' };
 
     // Ensure responseType has a default value
     const responseType = config.responseType || 'success';
@@ -105,7 +105,7 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
             ...config,
             responseType: value,
             // Clear other fields when switching response type
-            ...(value === 'error' ? { type: '', dataType: '', value: '', staticValue: '' } : { errorMessage: '' })
+            ...(value === 'error' ? { type: '', dataType: '', value: '', staticValue: '' } : { errorMessage: '', errorCode: '' })
         });
     };
 
@@ -144,7 +144,7 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
             <div className="mt-6">
                 {/* When Response Type is Error - show Response Type and Error Message in same row */}
                 {responseType === 'error' && (
-                    <div className="grid grid-cols-3 gap-4 items-start">
+                    <div className="grid grid-cols-2 gap-4 items-start">
                         <div className="min-w-0">
                             <Label className="text-sm font-medium text-gray-700 mb-2 block">
                                 Response Type <span className="text-black">*</span>

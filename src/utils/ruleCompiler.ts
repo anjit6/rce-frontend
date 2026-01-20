@@ -13,9 +13,12 @@ export interface RuleInputParam {
 }
 
 export interface StepData {
+    responseType?: string; // For output - 'success' or 'error'
     type: 'static' | 'inputParam' | 'stepOutputVariable' | 'array';
     value: any;
     dataType?: string;
+    errorCode?: string; // For output when responseType is 'error'
+    errorMessage?: string; // For output when responseType is 'error'
 }
 
 export interface SubFuncParam {
@@ -255,12 +258,19 @@ function generateStepLogic(step: RuleStep): string {
                 });
             }
         }
-        return `                    ${outputVariableName} = ${subFuncName}(${args.join(', ')});\n`;
+        return `                    ${outputVariableName} = ${subFuncName}(${args.join(', ')}).value;\n`;
     }
 
     if (step.type === 'output' && step.data) {
-        const outputVal = resolveValue(step.data);
-        return `                    return {\n                        success: true,\n                        value: ${outputVal}\n                    };\n`;
+        const responseType = step.data.responseType || 'success';
+
+        if (responseType === 'error') {
+            const errorMessage = step.data.errorMessage ? JSON.stringify(step.data.errorMessage) : '""';
+            return `                    return {\n                        success: false,\n                        error: {\n                            code: "",\n                            message: ${errorMessage},\n                            isUserError: true\n                        }\n                    };\n`;
+        } else {
+            const outputVal = resolveValue(step.data);
+            return `                    return {\n                        success: true,\n                        value: ${outputVal}\n                    };\n`;
+        }
     }
 
     if (step.type === 'condition') {
@@ -293,6 +303,7 @@ function generateStepLogic(step: RuleStep): string {
             logic += `                    } else {\n`;
             logic += `                        stepId = "${falseStep}";\n`;
             logic += `                    }\n`;
+            logic += `                    break;\n`;
         }
         return logic;
     }
