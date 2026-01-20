@@ -101,10 +101,10 @@ export default function ConditionalCard({
     const falseDepth = calculateMaxDepth(falseSteps);
     const maxDepth = Math.max(trueDepth, falseDepth);
 
-    // Base width is 1200px, each level of nesting doubles the width
-    const baseWidth = 1200;
-    const branchMinWidth = baseWidth * (maxDepth + 1);
-    const containerMinWidth = branchMinWidth * 2;
+    // Base width is 800px, each level of nesting doubles the width using power of 2
+    const baseWidth = 800;
+    const branchMinWidth = baseWidth * Math.pow(2, maxDepth);
+    const containerMinWidth = branchMinWidth * 2 + 48; // 48px for gap (24px * 2)
 
     // Build options for LHS/RHS Type dropdowns
     const typeOptions = [
@@ -503,6 +503,7 @@ export default function ConditionalCard({
                                                     stepNumber={displayStepNumber}
                                                     conditionStepNumber={index + 1}
                                                     allConfigurationSteps={allConfigurationSteps}
+                                                    handleAddBranchStep={handleAddBranchStep}
                                                     onConfigUpdate={(stepId: string, stepConfig: any) => {
                                                         // Update the step in TRUE branch - need to recursively update
                                                         const updateStepRecursively = (steps: ConfigurationStep[]): ConfigurationStep[] => {
@@ -602,6 +603,7 @@ export default function ConditionalCard({
                                                     stepNumber={displayStepNumber}
                                                     conditionStepNumber={index + 1}
                                                     allConfigurationSteps={allConfigurationSteps}
+                                                    handleAddBranchStep={handleAddBranchStep}
                                                     onConfigUpdate={(stepId: string, stepConfig: any) => {
                                                         // Update the step in FALSE branch - need to recursively update
                                                         const updateStepRecursively = (steps: ConfigurationStep[]): ConfigurationStep[] => {
