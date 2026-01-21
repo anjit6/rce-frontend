@@ -100,15 +100,6 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
         });
     };
 
-    const handleResponseTypeChange = (value: string) => {
-        onConfigUpdate(step.id, {
-            ...config,
-            responseType: value,
-            // Clear other fields when switching response type
-            ...(value === 'error' ? { type: '', dataType: '', value: '', staticValue: '' } : { errorMessage: '', errorCode: '' })
-        });
-    };
-
     const handleErrorMessageChange = (errorMessage: string) => {
         onConfigUpdate(step.id, {
             ...config,
@@ -135,33 +126,16 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
                     <h2 className="text-lg font-semibold text-gray-900 mb-1">Return</h2>
                     <p className="text-sm text-gray-600">Define the final output of the rule</p>
                 </div>
-                <span className="px-3 py-1 text-sm font-medium text-green-600 bg-green-50 rounded">
-                    Output
+                <span className={`px-3 py-1 text-sm font-medium rounded ${responseType === 'error' ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'}`}>
+                    {responseType === 'error' ? 'Error' : 'Success'}
                 </span>
             </div>
 
-            {/* Response Type and other fields */}
+            {/* Response Type fields */}
             <div className="mt-6">
-                {/* When Response Type is Error - show Response Type and Error Message in same row */}
+                {/* When Response Type is Error - show only Error Message field */}
                 {responseType === 'error' && (
-                    <div className="grid grid-cols-2 gap-4 items-start">
-                        <div className="min-w-0">
-                            <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                Response Type <span className="text-black">*</span>
-                            </Label>
-                            <Select
-                                value={responseType}
-                                onChange={handleResponseTypeChange}
-                                placeholder="Select response type"
-                                className="w-full"
-                                size="large"
-                                options={[
-                                    { label: 'Success', value: 'success' },
-                                    { label: 'Error', value: 'error' }
-                                ]}
-                                disabled={isViewMode}
-                            />
-                        </div>
+                    <div className="grid grid-cols-1 gap-4 items-start">
                         <div className="min-w-0">
                             <Label className="text-sm font-medium text-gray-700 mb-2 block">
                                 Error Message <span className="text-black">*</span>
@@ -179,27 +153,10 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
                     </div>
                 )}
 
-                {/* When Response Type is Success - show all three fields in one row */}
+                {/* When Response Type is Success - show Type and Data Type fields */}
                 {responseType === 'success' && (
                     <>
-                        <div className="grid grid-cols-3 gap-4 items-start">
-                            <div className="min-w-0">
-                                <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                    Response Type <span className="text-black">*</span>
-                                </Label>
-                                <Select
-                                    value={responseType}
-                                    onChange={handleResponseTypeChange}
-                                    placeholder="Select response type"
-                                    className="w-full"
-                                    size="large"
-                                    options={[
-                                        { label: 'Success', value: 'success' },
-                                        { label: 'Error', value: 'error' }
-                                    ]}
-                                    disabled={isViewMode}
-                                />
-                            </div>
+                        <div className="grid grid-cols-2 gap-4 items-start">
                             <div className="min-w-0">
                                 <Label className="text-sm font-medium text-gray-700 mb-2 block">
                                     Type <span className="text-black">*</span>
@@ -244,7 +201,7 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
 
                         {/* Static Value Input - Show only when "Static Value" is selected */}
                         {config.value === 'Static Value' && (
-                            <div className="grid grid-cols-3 gap-4 mt-4">
+                            <div className="grid grid-cols-2 gap-4 mt-4">
                                 <div className="min-w-0">
                                     <Label className="text-sm font-medium text-gray-700 mb-2 block">
                                         Static Value <span className="text-black">*</span>

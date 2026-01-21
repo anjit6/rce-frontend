@@ -1097,8 +1097,8 @@ export default function RuleCreatePage() {
                     sequence: index + 1,
                     name: param.fieldName,
                     dataType: param.dataType?.toLowerCase() || "string",
-                    paramType: param.type === "Input field" ? "inputField" :
-                        param.type === "Metadata field" ? "metadataField" : "default",
+                    paramType: param.type === "VD Field" ? "inputField" :
+                        param.type === "Fixed Field" ? "fixedField" : "default",
                     mandatory: "true",
                     default: "",
                     description: ""
@@ -1314,26 +1314,61 @@ export default function RuleCreatePage() {
                                 </div>
 
                                 {isViewMode ? (
-                                    /* Table View for View Mode */
-                                    <div className="mt-6 overflow-x-auto">
-                                        <table className="w-full">
-                                            <thead className="bg-gray-50 border-b border-gray-200">
-                                                <tr>
-                                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Type</th>
-                                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Field Name</th>
-                                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Data Type</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-200">
-                                                {inputParameters.map((param) => (
-                                                    <tr key={param.id} className="hover:bg-gray-50">
-                                                        <td className="px-4 py-3 text-sm text-gray-900">{param.type}</td>
-                                                        <td className="px-4 py-3 text-sm text-gray-900">{param.fieldName}</td>
-                                                        <td className="px-4 py-3 text-sm text-gray-900">{param.dataType}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                    /* View Mode with disabled selects and inputs */
+                                    <div className="space-y-4 max-h-[400px] overflow-y-auto mt-6 px-1 pb-1">
+                                        {inputParameters.map((param, index) => (
+                                            <div key={param.id}>
+                                                <div className="grid grid-cols-[1fr_1fr_1fr] gap-6 items-start">
+                                                    {/* Type Column */}
+                                                    <div>
+                                                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Type</Label>
+                                                        <Select
+                                                            value={param.type || undefined}
+                                                            className="w-full"
+                                                            size="large"
+                                                            options={[
+                                                                { label: 'Variable Data Field', value: 'VD Field' },
+                                                                { label: 'Fixed Field', value: 'Fixed Field' }
+                                                            ]}
+                                                            disabled
+                                                        />
+                                                    </div>
+
+                                                    {/* Field Name Column */}
+                                                    <div>
+                                                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Field Name</Label>
+                                                        <Input
+                                                            value={param.fieldName}
+                                                            className="w-full"
+                                                            inputSize="lg"
+                                                            disabled
+                                                        />
+                                                    </div>
+
+                                                    {/* Field Data Type Column */}
+                                                    <div>
+                                                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Data Type</Label>
+                                                        <Select
+                                                            value={param.dataType || 'String'}
+                                                            className="w-full"
+                                                            size="large"
+                                                            options={[
+                                                                { label: 'String', value: 'String' },
+                                                                { label: 'Integer', value: 'Integer' },
+                                                                { label: 'Float', value: 'Float' },
+                                                                { label: 'Boolean', value: 'Boolean' }
+                                                            ]}
+                                                            disabled
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Horizontal Line Separator */}
+                                                {index < inputParameters.length - 1 && (
+                                                    <div className="border-b border-gray-200 my-4"></div>
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
                                 ) : (
                                     /* Editable Form View for Edit Mode */
@@ -1354,7 +1389,6 @@ export default function RuleCreatePage() {
                                                             status={parameterErrors[param.id]?.type ? 'error' : undefined}
                                                             options={[
                                                                 { label: 'Variable Data Field', value: 'VD Field' },
-                                                                { label: 'Metadata field', value: 'Metadata field' },
                                                                 { label: 'Fixed Field', value: 'Fixed Field' }
                                                             ]}
                                                             filterOption={(input, option) =>
@@ -1371,25 +1405,21 @@ export default function RuleCreatePage() {
                                                     {/* Field Name Column */}
                                                     <div>
                                                         <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                                            {param.type === 'Metadata field'
-                                                                ? 'Metadata Field Name'
-                                                                : param.type === 'VD Field'
-                                                                    ? 'Variable Data Field Name'
-                                                                    : param.type === 'Fixed Field'
-                                                                        ? 'Fixed Field Name'
-                                                                        : 'Variable Data Field Name'}  <span className="text-black">*</span>
+                                                            {param.type === 'VD Field'
+                                                                ? 'Variable Data Field Name'
+                                                                : param.type === 'Fixed Field'
+                                                                    ? 'Fixed Field Name'
+                                                                    : 'Variable Data Field Name'}  <span className="text-black">*</span>
                                                         </Label>
                                                         <Input
                                                             value={param.fieldName}
                                                             onChange={(e) => updateInputParameter(param.id, 'fieldName', e.target.value)}
                                                             placeholder={
-                                                                param.type === 'Metadata field'
-                                                                    ? 'Enter metadata field name'
-                                                                    : param.type === 'VD Field'
-                                                                        ? 'Enter Variable Data Field name'
-                                                                        : param.type === 'Fixed Field'
-                                                                            ? 'Enter fixed field name'
-                                                                            : 'Enter Variable Data Field name'
+                                                                param.type === 'VD Field'
+                                                                    ? 'Enter Variable Data Field name'
+                                                                    : param.type === 'Fixed Field'
+                                                                        ? 'Enter fixed field name'
+                                                                        : 'Enter Variable Data Field name'
                                                             }
                                                             className="w-full"
                                                             inputSize="lg"

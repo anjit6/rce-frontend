@@ -494,7 +494,7 @@ export default function ConditionalCard({
                                             ...trueSteps.slice(0, index)
                                         ];
                                         return (
-                                            <div key={trueStep.id} className="w-full flex flex-col items-center">
+                                            <div key={trueStep.id} id={`step-${trueStep.id}`} className="w-full flex flex-col items-center">
                                                 <RuleConfigurationCard
                                                     step={trueStep}
                                                     inputParameters={inputParameters}
@@ -594,7 +594,7 @@ export default function ConditionalCard({
                                             ...falseSteps.slice(0, index)
                                         ];
                                         return (
-                                            <div key={falseStep.id} className="w-full flex flex-col items-center">
+                                            <div key={falseStep.id} id={`step-${falseStep.id}`} className="w-full flex flex-col items-center">
                                                 <RuleConfigurationCard
                                                     step={falseStep}
                                                     inputParameters={inputParameters}
