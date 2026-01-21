@@ -5,10 +5,12 @@ import ApprovalsPage from './pages/approvals';
 import MappingsPage from './pages/mappings';
 import AuditPage from './pages/audit';
 import UsersPage from './pages/users';
+import { SidebarProvider } from './context/SidebarContext';
 
 function App() {
   return (
     <BrowserRouter>
+      <SidebarProvider>
       <Routes>
         <Route path="/" element={<Navigate to="/rules" replace />} />
         <Route path="/rules" element={<RulesPage />} />
@@ -18,6 +20,7 @@ function App() {
         <Route path="/history" element={<AuditPage />} />
         <Route path="/users" element={<UsersPage />} />
       </Routes>
+      </SidebarProvider>
     </BrowserRouter>
   );
 }

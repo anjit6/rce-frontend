@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button, Collapse, Modal, Tooltip, Select, message } from 'antd';
 import { PlusOutlined, CloseOutlined, SearchOutlined, ExclamationCircleOutlined, CloseCircleFilled, CheckOutlined, CopyOutlined } from '@ant-design/icons';
 import Layout from '../../components/layout/Layout';
+import { useSidebar } from '../../context/SidebarContext';
 import { rulesService } from '../../services/rules.service';
 import { SUBFUNCTIONS } from '../../constants/subfunctions';
 import { InputParameter, FunctionType, ConfigurationStep } from '../../types/rule-configuration';
@@ -122,6 +123,7 @@ export default function RuleCreatePage() {
     const { ruleId } = useParams<{ ruleId: string }>();
     const navigate = useNavigate();
     const location = useLocation();
+    const { isCollapsed: isSidebarCollapsed } = useSidebar();
     const [rule, setRule] = useState<any>(null);
     const [isViewMode, setIsViewMode] = useState(false); // Default to edit mode
     const [configurationStarted, setConfigurationStarted] = useState(false);
@@ -1224,7 +1226,7 @@ export default function RuleCreatePage() {
 
     return (
         <Layout>
-            <div className="min-h-screen bg-gray-50">
+            <div className="min-h-screen bg-gray-50 pb-24">
                 {/* Main Content Area */}
                 <div className="px-8 py-6 max-w-full">
                     {/* Rule Title and Action Buttons */}
@@ -1562,7 +1564,7 @@ export default function RuleCreatePage() {
                                         );
                                     })}
 
-                                                                    </>
+                                </>
                             )}
                         </div>
                     </div>
@@ -1570,24 +1572,22 @@ export default function RuleCreatePage() {
 
                 {/* Fixed Action Buttons Card */}
                 {!isViewMode && (
-                    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
-                        <div className="bg-white rounded-lg shadow-lg border border-gray-200 px-16 py-4 mt-8 flex gap-3">
-                            <Button
-                                type="primary"
-                                size="large"
-                                onClick={handleSave}
-                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none"
-                            >
-                                Save
-                            </Button>
-                            <Button
-                                size="large"
-                                onClick={() => navigate('/rules')}
-                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                            >
-                                Cancel
-                            </Button>
-                        </div>
+                    <div className={`fixed bottom-0 right-0 z-50 bg-white shadow-lg py-4 flex justify-center gap-3 transition-all duration-300 ${isSidebarCollapsed ? 'left-20' : 'left-64'}`}>
+                        <Button
+                            type="primary"
+                            size="large"
+                            onClick={handleSave}
+                            className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none"
+                        >
+                            Save
+                        </Button>
+                        <Button
+                            size="large"
+                            onClick={() => navigate('/rules')}
+                            className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                        >
+                            Cancel
+                        </Button>
                     </div>
                 )}
             </div>

@@ -1,6 +1,7 @@
-import { ReactNode, useState } from 'react'
+import { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
+import { useSidebar } from '../../context/SidebarContext'
 
 interface LayoutProps {
   children: ReactNode
@@ -8,7 +9,7 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, showSidebar = true }: LayoutProps) {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const { isCollapsed: isSidebarCollapsed, setIsCollapsed: setIsSidebarCollapsed } = useSidebar();
   const navigate = useNavigate();
 
   const handleNavigate = (path: string) => {
