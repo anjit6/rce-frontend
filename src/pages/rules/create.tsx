@@ -518,7 +518,7 @@ export default function RuleCreatePage() {
     const [insertPosition, setInsertPosition] = useState<number>(-1);
     const [activeBranchStep, setActiveBranchStep] = useState<{ stepId: string; branch: 'true' | 'false' } | null>(null);
 
-    const handleFunctionSelect = (functionType: FunctionType, subfunctionId?: number) => {
+    const handleFunctionSelect = (functionType: FunctionType, subfunctionId?: number, responseType?: 'success' | 'error') => {
         const newStep: ConfigurationStep = {
             id: Date.now().toString(),
             type: functionType,
@@ -538,6 +538,18 @@ export default function RuleCreatePage() {
                         true: [],
                         false: []
                     }
+                }
+            }),
+            // Initialize output steps with responseType config
+            ...(functionType === 'output' && {
+                config: {
+                    responseType: responseType || 'success',
+                    type: '',
+                    dataType: '',
+                    value: '',
+                    staticValue: '',
+                    errorMessage: '',
+                    errorCode: ''
                 }
             })
         };
@@ -606,18 +618,13 @@ export default function RuleCreatePage() {
         setHasUnsavedChanges(true); // Mark as changed when adding a step
         setIsConfigModalOpen(false);
 
-        // Scroll to center when conditional is added
-        if (functionType === 'conditional') {
-            setTimeout(() => {
-                if (scrollContainerRef.current) {
-                    const container = scrollContainerRef.current;
-                    const scrollWidth = container.scrollWidth;
-                    const clientWidth = container.clientWidth;
-                    const centerScroll = (scrollWidth - clientWidth) / 2;
-                    container.scrollTo({ left: centerScroll, behavior: 'smooth' });
-                }
-            }, 100);
-        }
+        // Scroll to show the newly added card
+        setTimeout(() => {
+            const newCardElement = document.getElementById(`step-${newStep.id}`);
+            if (newCardElement) {
+                newCardElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+            }
+        }, 150);
     };
 
     const handleAddStep = (position: number) => {
@@ -1513,7 +1520,7 @@ export default function RuleCreatePage() {
                                         const shouldAddPadding = hasConditional && step.type !== 'conditional';
 
                                         return (
-                                            <div key={step.id} className="w-full flex justify-center" style={step.type === 'conditional' ? { minWidth: '1600px' } : {}}>
+                                            <div key={step.id} id={`step-${step.id}`} className="w-full flex justify-center" style={step.type === 'conditional' ? { minWidth: '1600px' } : {}}>
                                                 <div className="w-full" style={step.type !== 'conditional' ? { maxWidth: '800px' } : {}}>
                                                     <RuleConfigurationCard
                                                         step={step}
@@ -1555,31 +1562,34 @@ export default function RuleCreatePage() {
                                         );
                                     })}
 
-                                    {/* Action Buttons */}
-                                    {!isViewMode && (
-                                        <div className="flex justify-end items-center py-6 gap-3">
-                                            <Button
-                                                type="primary"
-                                                size="large"
-                                                onClick={handleSave}
-                                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none"
-                                            >
-                                                Save
-                                            </Button>
-                                            <Button
-                                                size="large"
-                                                onClick={() => navigate('/rules')}
-                                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                                            >
-                                                Cancel
-                                            </Button>
-                                        </div>
-                                    )}
-                                </>
+                                                                    </>
                             )}
                         </div>
                     </div>
                 </div>
+
+                {/* Fixed Action Buttons Card */}
+                {!isViewMode && (
+                    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
+                        <div className="bg-white rounded-lg shadow-lg border border-gray-200 px-16 py-4 mt-8 flex gap-3">
+                            <Button
+                                type="primary"
+                                size="large"
+                                onClick={handleSave}
+                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none"
+                            >
+                                Save
+                            </Button>
+                            <Button
+                                size="large"
+                                onClick={() => navigate('/rules')}
+                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                            >
+                                Cancel
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Function Library Modal */}
@@ -1608,6 +1618,27 @@ export default function RuleCreatePage() {
                                 onClick={() => setSearchQuery('')}
                             />
                         )}
+                    </div>
+
+                    {/* Output Card Buttons - Above Panels */}
+                    <div className="mb-4 px-6">
+                        <span className="font-semibold text-gray-900 block mb-2">Output Card</span>
+                        <div className="flex flex-wrap gap-2">
+                            <Button
+                                onClick={() => handleFunctionSelect('output', undefined, 'success')}
+                                className="rounded-full border-gray-300 text-gray-700 hover:border-red-500 hover:text-red-500 focus:border-red-500 focus:text-red-500"
+                                size="small"
+                            >
+                                Success Card
+                            </Button>
+                            <Button
+                                onClick={() => handleFunctionSelect('output', undefined, 'error')}
+                                className="rounded-full border-gray-300 text-gray-700 hover:border-red-500 hover:text-red-500 focus:border-red-500 focus:text-red-500"
+                                size="small"
+                            >
+                                Error Card
+                            </Button>
+                        </div>
                     </div>
 
                     <Collapse
@@ -1692,19 +1723,6 @@ export default function RuleCreatePage() {
                                         </Button>
                                     ))
                                 )}
-                            </div>
-                        </Panel>
-
-                        {/* Output Card */}
-                        <Panel header={<span className="font-semibold text-gray-900">Output Card</span>} key="4">
-                            <div className="flex flex-wrap gap-2">
-                                <Button
-                                    onClick={() => handleFunctionSelect('output')}
-                                    className="rounded-full border-gray-300 text-gray-700 hover:border-red-500 hover:text-red-500 focus:border-red-500 focus:text-red-500"
-                                    size="small"
-                                >
-                                    Standard Card
-                                </Button>
                             </div>
                         </Panel>
 
