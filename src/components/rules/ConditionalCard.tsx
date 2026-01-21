@@ -80,31 +80,42 @@ export default function ConditionalCard({
     const trueSteps = config.next?.true || [];
     const falseSteps = config.next?.false || [];
 
-    // Calculate the maximum depth of nested conditionals in a branch
-    const calculateMaxDepth = (steps: ConfigurationStep[]): number => {
-        if (steps.length === 0) return 0;
+    // Calculate the total width needed for a branch based on its content
+    const calculateBranchWidth = (steps: ConfigurationStep[]): number => {
+        if (steps.length === 0) return 300; // Empty branch minimal width
 
-        let maxDepth = 0;
+        // Check if this branch ONLY has a conditional and nothing else
+        if (steps.length === 1 && steps[0].type === 'conditional') {
+            const conditionalStep = steps[0];
+            if (conditionalStep.config?.next) {
+                // For a branch with ONLY a conditional, calculate nested widths
+                const trueWidth = calculateBranchWidth(conditionalStep.config.next.true || []);
+                const falseWidth = calculateBranchWidth(conditionalStep.config.next.false || []);
+                // Return just the nested width (no extra base width)
+                return trueWidth + falseWidth + 24;
+            }
+        }
+
+        // For branches with actual steps (subfunction, output, or multiple steps)
+        let maxWidth = 800; // Base width for a branch with actual steps
+
         steps.forEach(s => {
-            if (s.type === 'conditional') {
-                const trueDepth = calculateMaxDepth(s.config?.next?.true || []);
-                const falseDepth = calculateMaxDepth(s.config?.next?.false || []);
-                maxDepth = Math.max(maxDepth, 1 + Math.max(trueDepth, falseDepth));
+            if (s.type === 'conditional' && s.config?.next) {
+                // For nested conditionals, calculate width of both sub-branches
+                const trueWidth = calculateBranchWidth(s.config.next.true || []);
+                const falseWidth = calculateBranchWidth(s.config.next.false || []);
+                // This branch needs to fit both sub-branches side by side plus gap
+                const nestedWidth = trueWidth + falseWidth + 24;
+                maxWidth = Math.max(maxWidth, nestedWidth);
             }
         });
 
-        return maxDepth;
+        return maxWidth;
     };
 
-    // Calculate dynamic widths based on nesting depth
-    const trueDepth = calculateMaxDepth(trueSteps);
-    const falseDepth = calculateMaxDepth(falseSteps);
-    const maxDepth = Math.max(trueDepth, falseDepth);
-
-    // Base width is 800px, each level of nesting doubles the width using power of 2
-    const baseWidth = 800;
-    const branchMinWidth = baseWidth * Math.pow(2, maxDepth);
-    const containerMinWidth = branchMinWidth * 2 + 48; // 48px for gap (24px * 2)
+    // Calculate width independently for each branch based on its actual content
+    const trueBranchMinWidth = calculateBranchWidth(trueSteps);
+    const falseBranchMinWidth = calculateBranchWidth(falseSteps);
 
     // Build options for LHS/RHS Type dropdowns
     const typeOptions = [
@@ -445,31 +456,31 @@ export default function ConditionalCard({
                         {/* Horizontal and vertical branch connectors */}
                         <div className="relative">
                             {/* Use flex with same gap as cards to ensure alignment */}
-                            <div className="flex gap-6 px-16 items-start">
-                                {/* TRUE Branch Connector (Left) - Explicitly set minWidth to match card column */}
-                                <div className="flex-1 flex flex-col items-center relative" style={{ minWidth: `${branchMinWidth}px` }}>
-                                    {/* Horizontal Line Segment (Right half + half gap) pointing Inwards from RIGHT edge */}
-                                    <div className="absolute top-0 right-0 h-px bg-gray-300 z-0" style={{ width: 'calc(50% + 0px)' }}></div> {/* width = 50% of this container + half the gap (12px) */}
+                            <div className="flex gap-6 items-start justify-center">
+                                {/* TRUE Branch Connector (Left) */}
+                                <div className="flex flex-col items-center relative" style={{ minWidth: `${trueBranchMinWidth}px`, width: `${trueBranchMinWidth}px` }}>
+                                    {/* Horizontal line segment from center to right edge */}
+                                    <div className="absolute top-0 left-1/2 h-px bg-gray-300 z-0" style={{ width: `calc(50% + 12px)` }}></div>
 
                                     {/* Vertical connector line */}
                                     <div className="w-px h-8 bg-gray-300 z-10 relative"></div>
                                     {/* TRUE button */}
-                                    <div className="px-6 py-2 bg-gray-100 border-2 border-gray-400 rounded-lg z-10 relative bg-white">
+                                    <div className="px-6 py-2 bg-white border-2 border-gray-400 rounded-lg z-10 relative shadow-sm">
                                         <span className="text-gray-700 font-bold text-base">TRUE</span>
                                     </div>
                                     {/* Vertical connector line continuing from button */}
                                     <div className="w-px h-6 bg-gray-300"></div>
                                 </div>
 
-                                {/* FALSE Branch Connector (Right) - Explicitly set minWidth */}
-                                <div className="flex-1 flex flex-col items-center relative" style={{ minWidth: `${branchMinWidth}px` }}>
-                                    {/* Horizontal Line Segment (Left half + half gap) pointing Inwards from LEFT edge */}
-                                    <div className="absolute top-0 left-0 h-px bg-gray-300 z-0" style={{ width: 'calc(50% + 0px)' }}></div>
+                                {/* FALSE Branch Connector (Right) */}
+                                <div className="flex flex-col items-center relative" style={{ minWidth: `${falseBranchMinWidth}px`, width: `${falseBranchMinWidth}px` }}>
+                                    {/* Horizontal line segment from left edge to center */}
+                                    <div className="absolute top-0 right-1/2 h-px bg-gray-300 z-0" style={{ width: `calc(50% + 12px)` }}></div>
 
                                     {/* Vertical connector line */}
                                     <div className="w-px h-8 bg-gray-300 z-10 relative"></div>
                                     {/* FALSE button */}
-                                    <div className="px-6 py-2 bg-gray-100 border-2 border-gray-400 rounded-lg z-10 relative bg-white">
+                                    <div className="px-6 py-2 bg-white border-2 border-gray-400 rounded-lg z-10 relative shadow-sm">
                                         <span className="text-gray-700 font-bold text-base">FALSE</span>
                                     </div>
                                     {/* Vertical connector line continuing from button */}
@@ -482,10 +493,10 @@ export default function ConditionalCard({
                         </div>
 
                         {/* Branch Cards - Both visible side by side */}
-                        <div className="flex gap-6 mt-0 px-16 items-start" style={{ minWidth: `${containerMinWidth}px` }}> {/* items-start to ensure top alignment */}
+                        <div className="flex gap-6 mt-0 items-start justify-center"> {/* items-start to ensure top alignment */}
                             {/* TRUE Branch Card */}
-                            <div className="flex flex-col flex-1" style={{ minWidth: `${branchMinWidth}px` }}>
-                                <div className="flex flex-col w-full"> {/* Centering content */}
+                            <div className="flex flex-col" style={{ minWidth: `${trueBranchMinWidth}px`, width: `${trueBranchMinWidth}px` }}>
+                                <div className="flex flex-col w-full items-center"> {/* Centering content */}
                                     {/* Render TRUE branch steps */}
                                     {trueSteps.map((trueStep: ConfigurationStep, index: number) => {
                                         // Combine parent steps (before conditional) with previous branch steps
@@ -564,7 +575,7 @@ export default function ConditionalCard({
                                     )}
 
                                     {!isViewMode && (trueSteps.length === 0 || (trueSteps[trueSteps.length - 1].type !== 'output' && trueSteps[trueSteps.length - 1].type !== 'conditional')) && (
-                                        <div className="text-center w-full flex justify-center">
+                                        <div className="text-center w-full flex justify-center mt-4">
                                             <Button
                                                 type="primary"
                                                 onClick={() => {
@@ -573,7 +584,7 @@ export default function ConditionalCard({
                                                         onAddBranchStep('true');
                                                     }
                                                 }}
-                                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none px-8"
+                                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none px-8 shadow-md"
                                                 size="large"
                                             >
                                                 Add Step
@@ -584,7 +595,7 @@ export default function ConditionalCard({
                             </div>
 
                             {/* FALSE Branch Card */}
-                            <div className="flex flex-col flex-1" style={{ minWidth: `${branchMinWidth}px` }}>
+                            <div className="flex flex-col" style={{ minWidth: `${falseBranchMinWidth}px`, width: `${falseBranchMinWidth}px` }}>
                                 <div className="flex flex-col items-center w-full">
                                     {/* Render FALSE branch steps (output card) */}
                                     {falseSteps.map((falseStep: ConfigurationStep, index: number) => {
@@ -664,11 +675,11 @@ export default function ConditionalCard({
                                     )}
 
                                     {!isViewMode && (falseSteps.length === 0 || (falseSteps[falseSteps.length - 1].type !== 'output' && falseSteps[falseSteps.length - 1].type !== 'conditional')) && (
-                                        <div className="text-center w-full flex justify-center">
+                                        <div className="text-center w-full flex justify-center mt-4">
                                             <Button
                                                 type="primary"
                                                 onClick={() => onAddBranchStep && onAddBranchStep('false')}
-                                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none px-8"
+                                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none px-8 shadow-md"
                                                 size="large"
                                             >
                                                 Add Step

@@ -32,6 +32,7 @@ export default function RulesList() {
     const [loading, setLoading] = useState(false);
     const [creating, setCreating] = useState(false);
     const [selectedStatus, setSelectedStatus] = useState<'WIP' | 'TEST' | 'PENDING' | 'PROD' | null>(null);
+    const [totalRules, setTotalRules] = useState(0);
     const pageSize = 10;
 
     // Debounce search input
@@ -43,9 +44,13 @@ export default function RulesList() {
         return () => clearTimeout(timer);
     }, [searchInput]);
 
-    // Load rules from API when search query or status filter changes
+    // Load rules from API when search query, status filter, or page changes
     useEffect(() => {
         loadRules();
+    }, [searchQuery, selectedStatus, currentPage]);
+
+    // Reset to page 1 when search or filter changes
+    useEffect(() => {
         setCurrentPage(1);
     }, [searchQuery, selectedStatus]);
 
@@ -60,8 +65,8 @@ export default function RulesList() {
     const loadRules = async () => {
         try {
             setLoading(true);
-            // Pass search query and status filter to API
-            const rulesData = await rulesService.getRules(1, 100, searchQuery || undefined, selectedStatus || undefined);
+            // Server-side pagination: send current page and limit to API
+            const { rules: rulesData, total } = await rulesService.getRules(currentPage, pageSize, searchQuery || undefined, selectedStatus || undefined);
             const tableRules: TableRule[] = rulesData.map(rule => ({
                 key: rule.id.toString(),
                 id: rule.id,
@@ -74,6 +79,7 @@ export default function RulesList() {
                 type: rule.type
             }));
             setRules(tableRules);
+            setTotalRules(total);
         } catch (error) {
             console.error('Failed to load rules:', error);
             message.error('Failed to load rules. Please try again.');
@@ -146,11 +152,6 @@ export default function RulesList() {
             }
         }
     };
-
-    // Calculate paginated data (API already filtered by search)
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    const paginatedRules = rules.slice(startIndex, endIndex);
 
     // Table columns definition
     const columns: ColumnsType<TableRule> = [
@@ -364,7 +365,7 @@ export default function RulesList() {
                     <Spin spinning={loading} indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />}>
                         <Table
                             columns={columns}
-                            dataSource={paginatedRules}
+                            dataSource={rules}
                             pagination={false}
                             rowClassName="hover:bg-gray-50/50 cursor-pointer"
                             className="rules-table"
@@ -392,10 +393,11 @@ export default function RulesList() {
                     <div className="flex justify-end mt-6">
                         <Pagination
                             current={currentPage}
-                            total={rules.length}
+                            total={totalRules}
                             pageSize={pageSize}
                             onChange={(page) => setCurrentPage(page)}
                             showSizeChanger={false}
+                            // showTotal={(total, range) => `${range[0]}-${range[1]} of ${total} rules`}
                             className="custom-pagination"
                         />
                     </div>

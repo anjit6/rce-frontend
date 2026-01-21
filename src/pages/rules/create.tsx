@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button, Collapse, Modal, Tooltip, Select, message } from 'antd';
-import { PlusOutlined, CloseOutlined, SearchOutlined, ExclamationCircleOutlined, CloseCircleFilled, CheckOutlined, CopyOutlined } from '@ant-design/icons';
+import { PlusOutlined, CloseOutlined, SearchOutlined, ExclamationCircleOutlined, CloseCircleFilled, CheckOutlined, CopyOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
 import Layout from '../../components/layout/Layout';
 import { useSidebar } from '../../context/SidebarContext';
 import { rulesService } from '../../services/rules.service';
-import { SUBFUNCTIONS } from '../../constants/subfunctions';
+import { subfunctionsService, Subfunction } from '../../services/subfunctions.service';
+import { ruleFunctionsApi, ruleFunctionStepsApi, CreateRuleFunctionStepDto } from '../../api';
 import { InputParameter, FunctionType, ConfigurationStep } from '../../types/rule-configuration';
 import RuleConfigurationCard from '../../components/rules/RuleConfigurationCard';
 import { Input } from '../../components/ui/input';
@@ -148,7 +149,28 @@ export default function RuleCreatePage() {
     const [savedRuleFunction, setSavedRuleFunction] = useState<any>(null);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [subfunctions, setSubfunctions] = useState<Subfunction[]>([]);
+    const [subfunctionsLoading, setSubfunctionsLoading] = useState(true);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const [zoomLevel, setZoomLevel] = useState(100); // Default zoom level 100%
+
+    // Fetch subfunctions from API on component mount
+    useEffect(() => {
+        const fetchSubfunctions = async () => {
+            try {
+                setSubfunctionsLoading(true);
+                const data = await subfunctionsService.getSubfunctions();
+                setSubfunctions(data);
+            } catch (error) {
+                console.error('Failed to fetch subfunctions:', error);
+                message.error('Failed to load subfunctions');
+            } finally {
+                setSubfunctionsLoading(false);
+            }
+        };
+
+        fetchSubfunctions();
+    }, []);
 
     useEffect(() => {
         if (ruleId) {
@@ -173,49 +195,192 @@ export default function RuleCreatePage() {
                     // If it's a new rule, start in edit mode; otherwise, start in view mode
                     setIsViewMode(!isNewRule);
 
-                    // Load configuration from localStorage (existing functionality)
-                    const savedConfig = localStorage.getItem('rce_rule_configurations');
-                    if (savedConfig) {
-                        try {
-                            const configurations = JSON.parse(savedConfig);
-                            const ruleConfig = configurations[ruleId];
+                    // Try to load configuration from API first
+                    try {
+                        console.log("🔄 Loading configuration from API...");
+                        const ruleFunction = await ruleFunctionsApi.getByRuleId(ruleData.id);
+                        const steps = await ruleFunctionStepsApi.getByRuleFunctionId(ruleFunction.id, { limit: 1000 });
 
-                            if (ruleConfig) {
-                                console.log("📂 Loading saved configuration for rule:", ruleId);
-                                console.log("Saved config:", ruleConfig);
+                        console.log("📂 Loading saved configuration from API for rule:", ruleId);
 
-                                // Restore input parameters
-                                if (ruleConfig.inputParameters && ruleConfig.inputParameters.length > 0) {
-                                    setInputParameters(ruleConfig.inputParameters);
-                                    console.log("✅ Input parameters restored:", ruleConfig.inputParameters.length, "parameters");
-                                }
-
-                                // Restore configuration steps
-                                if (ruleConfig.configurationSteps && ruleConfig.configurationSteps.length > 0) {
-                                    setConfigurationSteps(ruleConfig.configurationSteps);
-                                    setConfigurationStarted(true);
-                                    console.log("✅ Configuration steps restored:", ruleConfig.configurationSteps.length, "steps");
-                                }
-
-                                // Store the saved ruleFunction (including the generated code)
-                                if (ruleConfig.ruleFunction) {
-                                    setSavedRuleFunction(ruleConfig.ruleFunction);
-                                    if (ruleConfig.ruleFunction.code) {
-                                        setGeneratedJsCode(ruleConfig.ruleFunction.code);
-                                        console.log("✅ Generated JavaScript code loaded from saved configuration");
-                                    }
-                                }
-
-                                setHasUnsavedChanges(false);
-                                console.log("✅ Configuration loaded successfully!");
-                            } else {
-                                console.log("ℹ️ No saved configuration found for rule:", ruleId);
-                            }
-                        } catch (parseError) {
-                            console.error("Failed to parse localStorage config:", parseError);
+                        // Restore input parameters from rule function
+                        if (ruleFunction.input_params && ruleFunction.input_params.length > 0) {
+                            const apiInputParams = ruleFunction.input_params.map((param, index) => ({
+                                id: String(Date.now() + index),
+                                name: `Input Parameter ${index + 1}`,
+                                fieldName: param.name,
+                                type: param.param_type === 'inputField' ? 'VD Field' : 'Fixed Field',
+                                dataType: param.data_type.charAt(0).toUpperCase() + param.data_type.slice(1)
+                            }));
+                            setInputParameters(apiInputParams);
+                            console.log("✅ Input parameters restored from API:", apiInputParams.length, "parameters");
                         }
-                    } else {
-                        console.log("ℹ️ No configurations in localStorage");
+
+                        // Restore configuration steps from API
+                        if (steps.data && steps.data.length > 0) {
+                            console.log("🔄 Converting API steps to frontend format...");
+                            const convertedSteps = steps.data.map((apiStep: any) => {
+                                if (apiStep.type === 'subFunction') {
+                                    // Convert API params to UI params format
+                                    const params = apiStep.subfunction_params?.map((apiParam: any) => {
+                                        if (apiParam.data_type === 'static') {
+                                            // Static value
+                                            return {
+                                                type: 'Static Value',
+                                                dataType: 'STRING', // Default, will be inferred from param definition if needed
+                                                value: apiParam.data_value
+                                            };
+                                        } else if (apiParam.data_type === 'inputParam') {
+                                            // Input parameter - find the matching input parameter by fieldName
+                                            const matchingInputParam = inputParameters.find(ip => ip.fieldName === apiParam.data_value);
+                                            return {
+                                                type: matchingInputParam?.name || apiParam.data_value,
+                                                value: ''
+                                            };
+                                        } else if (apiParam.data_type === 'stepOutputVariable') {
+                                            // Step output variable
+                                            return {
+                                                type: apiParam.data_value,
+                                                value: ''
+                                            };
+                                        }
+                                        return { type: '', value: '' };
+                                    }) || [];
+
+                                    return {
+                                        id: apiStep.id,
+                                        type: 'subfunction' as const,
+                                        subfunctionId: apiStep.subfunction_id,
+                                        config: {
+                                            outputVariable: apiStep.output_variable_name || '',
+                                            params: params
+                                        }
+                                    };
+                                } else if (apiStep.type === 'condition') {
+                                    return {
+                                        id: apiStep.id,
+                                        type: 'conditional' as const,
+                                        config: {
+                                            conditions: apiStep.conditions?.map((cond: any) => ({
+                                                sequence: cond.sequence,
+                                                andOr: cond.and_or,
+                                                lhs: {
+                                                    type: cond.lhs_type,
+                                                    dataType: cond.lhs_data_type,
+                                                    value: cond.lhs_value
+                                                },
+                                                operator: cond.operator,
+                                                rhs: {
+                                                    type: cond.rhs_type,
+                                                    dataType: cond.rhs_data_type,
+                                                    value: cond.rhs_value
+                                                }
+                                            })) || [],
+                                            trueBranch: typeof apiStep.next_step === 'object' ? apiStep.next_step.true : null,
+                                            falseBranch: typeof apiStep.next_step === 'object' ? apiStep.next_step.false : null
+                                        }
+                                    };
+                                } else if (apiStep.type === 'output') {
+                                    const outputData = apiStep.output_data;
+
+                                    // Determine the UI value based on the data type
+                                    let uiValue = '';
+                                    let staticValue = '';
+
+                                    if (outputData?.data_type === 'static') {
+                                        uiValue = 'Static Value';
+                                        staticValue = outputData.data_value || '';
+                                    } else if (outputData?.data_type === 'inputParam') {
+                                        // Find the input parameter by fieldName and use its name
+                                        const matchingInputParam = inputParameters.find(ip => ip.fieldName === outputData.data_value);
+                                        uiValue = matchingInputParam?.name || outputData.data_value;
+                                    } else if (outputData?.data_type === 'stepOutputVariable') {
+                                        uiValue = outputData.data_value || '';
+                                    }
+
+                                    // Convert data type from lowercase to PascalCase for UI
+                                    const dataType = outputData?.data_value_type
+                                        ? outputData.data_value_type.charAt(0).toUpperCase() + outputData.data_value_type.slice(1)
+                                        : 'String';
+
+                                    return {
+                                        id: apiStep.id,
+                                        type: 'output' as const,
+                                        config: {
+                                            responseType: 'success', // Default to success, API doesn't store this
+                                            type: outputData?.data_type || 'static',
+                                            dataType: dataType,
+                                            value: uiValue,
+                                            staticValue: staticValue,
+                                            errorMessage: '', // Not stored in current API format
+                                            errorCode: ''
+                                        }
+                                    };
+                                }
+                                return null;
+                            }).filter((step): step is NonNullable<typeof step> => step !== null);
+
+                            setConfigurationSteps(convertedSteps);
+                            setConfigurationStarted(true);
+                            console.log("✅ Configuration steps restored from API:", convertedSteps.length, "steps");
+                        }
+
+                        // Store the generated code
+                        if (ruleFunction.code) {
+                            setGeneratedJsCode(ruleFunction.code);
+                            console.log("✅ Generated JavaScript code loaded from API");
+                        }
+
+                        setHasUnsavedChanges(false);
+                        setConfigurationStarted(steps.data.length > 0);
+                        console.log("✅ Configuration loaded from API successfully!");
+                    } catch (apiError: any) {
+                        // If API load fails, fall back to localStorage
+                        console.log("ℹ️ No configuration found in API, trying localStorage...", apiError.message);
+
+                        const savedConfig = localStorage.getItem('rce_rule_configurations');
+                        if (savedConfig) {
+                            try {
+                                const configurations = JSON.parse(savedConfig);
+                                const ruleConfig = configurations[ruleId];
+
+                                if (ruleConfig) {
+                                    console.log("📂 Loading saved configuration from localStorage for rule:", ruleId);
+                                    console.log("Saved config:", ruleConfig);
+
+                                    // Restore input parameters
+                                    if (ruleConfig.inputParameters && ruleConfig.inputParameters.length > 0) {
+                                        setInputParameters(ruleConfig.inputParameters);
+                                        console.log("✅ Input parameters restored from localStorage:", ruleConfig.inputParameters.length, "parameters");
+                                    }
+
+                                    // Restore configuration steps
+                                    if (ruleConfig.configurationSteps && ruleConfig.configurationSteps.length > 0) {
+                                        setConfigurationSteps(ruleConfig.configurationSteps);
+                                        setConfigurationStarted(true);
+                                        console.log("✅ Configuration steps restored from localStorage:", ruleConfig.configurationSteps.length, "steps");
+                                    }
+
+                                    // Store the saved ruleFunction (including the generated code)
+                                    if (ruleConfig.ruleFunction) {
+                                        setSavedRuleFunction(ruleConfig.ruleFunction);
+                                        if (ruleConfig.ruleFunction.code) {
+                                            setGeneratedJsCode(ruleConfig.ruleFunction.code);
+                                            console.log("✅ Generated JavaScript code loaded from localStorage");
+                                        }
+                                    }
+
+                                    setHasUnsavedChanges(false);
+                                    console.log("✅ Configuration loaded from localStorage successfully!");
+                                } else {
+                                    console.log("ℹ️ No saved configuration found in localStorage for rule:", ruleId);
+                                }
+                            } catch (parseError) {
+                                console.error("Failed to parse localStorage config:", parseError);
+                            }
+                        } else {
+                            console.log("ℹ️ No configurations in localStorage");
+                        }
                     }
                 } catch (error) {
                     console.error('Failed to load rule:', error);
@@ -238,10 +403,10 @@ export default function RuleCreatePage() {
         if (isConfigModalOpen) {
             // Recompute which sections have data
             const userDefinedRules: string[] = [];
-            const stringFunctions = SUBFUNCTIONS.filter(func => func.categoryId === 'STR' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
-            const numberFunctions = SUBFUNCTIONS.filter(func => func.categoryId === 'NUM' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
-            const dateFunctions = SUBFUNCTIONS.filter(func => func.categoryId === 'DATE' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
-            const utilFunctions = SUBFUNCTIONS.filter(func => func.categoryId === 'UTIL' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
+            const stringFunctions = subfunctions.filter(func => func.categoryId === 'STR' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
+            const numberFunctions = subfunctions.filter(func => func.categoryId === 'NUM' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
+            const dateFunctions = subfunctions.filter(func => func.categoryId === 'DATE' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
+            const utilFunctions = subfunctions.filter(func => func.categoryId === 'UTIL' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
             const conditionalFunctions = [
                 { name: 'IF', type: 'conditional' as FunctionType },
                 { name: 'IFS', type: null },
@@ -264,7 +429,7 @@ export default function RuleCreatePage() {
 
             setActiveAccordionKeys(newActiveKeys);
         }
-    }, [isConfigModalOpen, searchQuery]);
+    }, [isConfigModalOpen, searchQuery, subfunctions]);
 
     // Helper function to renumber parameters sequentially
     const renumberParameters = (params: InputParameter[]) => {
@@ -646,6 +811,19 @@ export default function RuleCreatePage() {
         setHasUnsavedChanges(true); // Mark as changed
     };
 
+    // Zoom control functions
+    const handleZoomIn = () => {
+        setZoomLevel(prev => Math.min(prev + 10, 150)); // Max 150%
+    };
+
+    const handleZoomOut = () => {
+        setZoomLevel(prev => Math.max(prev - 10, 50)); // Min 50%
+    };
+
+    const handleResetZoom = () => {
+        setZoomLevel(100);
+    };
+
     // Shared helper function to recursively process all steps including nested conditionals
     const processStepsRecursively = (steps: ConfigurationStep[], parentNext: string | null = null, stepCounter = { count: 0 }): any[] => {
         const allSteps: any[] = [];
@@ -656,7 +834,7 @@ export default function RuleCreatePage() {
             stepCounter.count++;
 
             if (step.type === 'subfunction') {
-                const subfunc = SUBFUNCTIONS.find(f => f.id === step.subfunctionId);
+                const subfunc = subfunctions.find(f => f.id === step.subfunctionId);
                 const config = step.config || {};
                 const inputParams = (config.params || []).map((paramConfig: any, paramIdx: number) => {
                     let dataValue = '';
@@ -674,8 +852,12 @@ export default function RuleCreatePage() {
                         dataValue = paramConfig.type || '';
                     }
 
+                    // Get the actual parameter name from the subfunction definition
+                    const subfuncParam = subfunc?.inputParams?.[paramIdx];
+                    const paramName = subfuncParam?.name || String(paramIdx + 1);
+
                     return {
-                        subFuncParamId: String(paramIdx + 1),
+                        subFuncParamId: paramName,
                         data: {
                             type: dataType,
                             value: dataValue
@@ -799,7 +981,7 @@ export default function RuleCreatePage() {
         return allSteps;
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         // Validation: Verify if an Output Card exists (recursively check in conditionals)
         const hasOutputStepRecursive = (steps: ConfigurationStep[]): boolean => {
             return steps.some(step => {
@@ -843,28 +1025,22 @@ export default function RuleCreatePage() {
         };
 
         // Generate JavaScript code from the rule function
-        // Only regenerate if there were changes or no code exists
-        if (hasUnsavedChanges || !generatedJsCode) {
-            console.log("🔄 Regenerating JavaScript code due to changes");
-            try {
-                const compiledCode = compileRule(ruleFunction as any);
-                ruleFunction.code = compiledCode;
-                setGeneratedJsCode(compiledCode);
-                console.log("✅ JavaScript code generated successfully");
-            } catch (error) {
-                console.error('Failed to compile rule during save:', error);
-                Modal.error({
-                    title: 'Code Generation Failed',
-                    content: 'Failed to generate JavaScript code. Please check your rule configuration.',
-                    okText: 'OK',
-                    centered: true
-                });
-                return; // Stop save process if compilation fails
-            }
-        } else {
-            // Use existing code if no changes were made
-            console.log("✅ Using existing JavaScript code (no changes detected)");
-            ruleFunction.code = generatedJsCode;
+        // Always regenerate to ensure latest compiler changes are applied
+        console.log("🔄 Regenerating JavaScript code...");
+        try {
+            const compiledCode = compileRule(ruleFunction as any);
+            ruleFunction.code = compiledCode;
+            setGeneratedJsCode(compiledCode);
+            console.log("✅ JavaScript code generated successfully");
+        } catch (error) {
+            console.error('Failed to compile rule during save:', error);
+            Modal.error({
+                title: 'Code Generation Failed',
+                content: 'Failed to generate JavaScript code. Please check your rule configuration.',
+                okText: 'OK',
+                centered: true
+            });
+            return; // Stop save process if compilation fails
         }
 
         // Create the configuration object to save
@@ -878,12 +1054,12 @@ export default function RuleCreatePage() {
         };
 
         try {
-            // Save to localStorage
+            // Save to localStorage as backup
             saveRuleConfiguration(configToSave);
 
             // Log the generated JSON with clear formatting
             console.log("=".repeat(80));
-            console.log("✅ Configuration Saved Successfully!");
+            console.log("🔄 Saving Configuration to API...");
             console.log("=".repeat(80));
             console.log("Rule ID:", rule?.id);
             console.log("Rule Name:", rule?.name);
@@ -891,10 +1067,121 @@ export default function RuleCreatePage() {
             console.log("Generated Rule Function JSON:");
             console.log(JSON.stringify(ruleFunction, null, 2));
             console.log("=".repeat(80));
-            console.log("Full Configuration (including input params & steps):");
-            console.log(JSON.stringify(configToSave, null, 2));
+
+            // Check if rule function already exists for this rule
+            let savedRuleFunction;
+            try {
+                const existingRuleFunction = await ruleFunctionsApi.getByRuleId(rule.id);
+                console.log("📝 Updating existing rule function...");
+                // Update existing rule function
+                savedRuleFunction = await ruleFunctionsApi.update(existingRuleFunction.id, {
+                    code: ruleFunction.code,
+                    return_type: ruleFunction.returnType,
+                    input_params: ruleFunction.inputParams.map((param: any) => ({
+                        sequence: param.sequence,
+                        name: param.name,
+                        data_type: param.dataType,
+                        param_type: param.paramType as 'inputField' | 'metaDataField' | 'default',
+                        mandatory: param.mandatory === "true" || param.mandatory === true,
+                        default_value: param.default || null,
+                        description: param.description || ''
+                    }))
+                });
+                console.log("✅ Rule function updated successfully!");
+
+                // Delete existing steps before creating new ones
+                console.log("🗑️ Deleting old steps...");
+                const existingSteps = await ruleFunctionStepsApi.getByRuleFunctionId(existingRuleFunction.id, { limit: 1000 });
+                if (existingSteps.data.length > 0) {
+                    await Promise.all(
+                        existingSteps.data.map(step =>
+                            ruleFunctionStepsApi.delete(step.id, existingRuleFunction.id)
+                        )
+                    );
+                    console.log(`✅ Deleted ${existingSteps.data.length} old steps`);
+                }
+            } catch (error: any) {
+                if (error.message.includes('not found') || error.message.includes('404')) {
+                    console.log("✨ Creating new rule function...");
+                    // Create new rule function
+                    savedRuleFunction = await ruleFunctionsApi.create({
+                        rule_id: rule.id,
+                        code: ruleFunction.code,
+                        return_type: ruleFunction.returnType,
+                        input_params: ruleFunction.inputParams.map((param: any) => ({
+                            sequence: param.sequence,
+                            name: param.name,
+                            data_type: param.dataType,
+                            param_type: param.paramType as 'inputField' | 'metaDataField' | 'default',
+                            mandatory: param.mandatory === "true" || param.mandatory === true,
+                            default_value: param.default || null,
+                            description: param.description || ''
+                        }))
+                    });
+                    console.log("✅ Rule function created successfully!");
+                } else {
+                    throw error;
+                }
+            }
+
+            // Save all steps
+            console.log("💾 Saving steps...");
+            const stepsToCreate: CreateRuleFunctionStepDto[] = ruleFunction.steps.map((step: any, index: number) => {
+                // Determine subfunction_id: if it's already a number, use it; if it's a string, find the matching subfunction
+                let subfunctionId = null;
+                if (step.subFunction?.id) {
+                    if (typeof step.subFunction.id === 'number') {
+                        subfunctionId = step.subFunction.id;
+                    } else {
+                        // Find the subfunction by function_name (string ID)
+                        const matchingSubfunction = subfunctions.find(sf => sf.functionName === step.subFunction.id);
+                        subfunctionId = matchingSubfunction?.id || null;
+                    }
+                }
+
+                return {
+                    id: step.id,
+                    rule_function_id: savedRuleFunction.id,
+                    type: step.type as 'subFunction' | 'condition' | 'output',
+                    output_variable_name: step.outputVariableName || null,
+                    return_type: step.returnType || null,
+                    next_step: step.next || null,
+                    sequence: index + 1,
+                    subfunction_id: subfunctionId,
+                    subfunction_params: step.subFunction?.inputParams?.map((param: any) => ({
+                        subfunction_param_name: param.subFuncParamId || '',
+                        data_type: param.data.type as 'static' | 'inputParam' | 'stepOutputVariable',
+                        data_value: param.data.value || ''
+                    })) || [],
+                    conditions: step.conditions?.map((cond: any) => ({
+                        sequence: cond.sequence,
+                        and_or: cond.andOr || null,
+                        lhs_type: cond.lhs.type as 'static' | 'inputParam' | 'stepOutputVariable',
+                        lhs_data_type: cond.lhs.dataType,
+                        lhs_value: cond.lhs.value,
+                        operator: cond.operator,
+                        rhs_type: cond.rhs.type as 'static' | 'inputParam' | 'stepOutputVariable',
+                        rhs_data_type: cond.rhs.dataType,
+                        rhs_value: cond.rhs.value
+                    })) || [],
+                    output_data: step.data ? {
+                        data_type: step.data.type as 'static' | 'inputParam' | 'stepOutputVariable',
+                        data_value_type: step.data.dataType,
+                        data_value: step.data.value || ''
+                    } : undefined
+                };
+            });
+
+            console.log("📦 Steps payload to be sent:", JSON.stringify(stepsToCreate, null, 2));
+            console.log("📊 Number of steps:", stepsToCreate.length);
+
+            await ruleFunctionStepsApi.bulkCreate(stepsToCreate);
+            console.log(`✅ Saved ${stepsToCreate.length} steps successfully!`);
+
             console.log("=".repeat(80));
-            console.log("📍 Stored in localStorage under key: 'rce_rule_configurations'");
+            console.log("✅ Configuration Saved to API Successfully!");
+            console.log("=".repeat(80));
+            console.log("📍 Also stored in localStorage as backup");
             console.log("=".repeat(80));
 
             // Reset unsaved changes flag after successful save
@@ -902,18 +1189,20 @@ export default function RuleCreatePage() {
             setSavedRuleFunction(ruleFunction);
 
             // Show success confirmation modal
+            message.success('Rule saved successfully!');
             Modal.confirm({
                 title: 'Rule Saved Successfully',
+                content: 'Your rule configuration has been saved to the database.',
                 okText: 'OK',
                 centered: true,
                 icon: null,
                 cancelButtonProps: { style: { display: 'none' } }
             });
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to save configuration:', error);
             Modal.error({
                 title: 'Save Failed',
-                content: 'Failed to save configuration. Please try again.',
+                content: error.message || 'Failed to save configuration. Please try again.',
                 okText: 'OK',
                 centered: true
             });
@@ -1117,7 +1406,7 @@ export default function RuleCreatePage() {
                     const nextStep = index < configurationSteps.length - 1 ? configurationSteps[index + 1].id : null;
 
                     if (step.type === 'subfunction') {
-                        const subfunc = SUBFUNCTIONS.find(f => f.id === step.subfunctionId);
+                        const subfunc = subfunctions.find(f => f.id === step.subfunctionId);
                         const config = step.config || {};
                         return {
                             id: stepId,
@@ -1214,10 +1503,10 @@ export default function RuleCreatePage() {
     // Predefined functions for the sidebar (empty - will be populated in future)
     const userDefinedRules: string[] = [];
 
-    const stringFunctions = SUBFUNCTIONS.filter(func => func.categoryId === 'STR' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    const numberFunctions = SUBFUNCTIONS.filter(func => func.categoryId === 'NUM' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    const dateFunctions = SUBFUNCTIONS.filter(func => func.categoryId === 'DATE' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    const utilFunctions = SUBFUNCTIONS.filter(func => func.categoryId === 'UTIL' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    const stringFunctions = subfunctions.filter(func => func.categoryId === 'STR' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    const numberFunctions = subfunctions.filter(func => func.categoryId === 'NUM' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    const dateFunctions = subfunctions.filter(func => func.categoryId === 'DATE' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    const utilFunctions = subfunctions.filter(func => func.categoryId === 'UTIL' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const conditionalFunctions = [
         { name: 'IF', type: 'conditional' as FunctionType },
@@ -1296,8 +1585,47 @@ export default function RuleCreatePage() {
                     </div>
 
                     {/* Scrollable Container for entire rule tree */}
+                    {/* Zoom Controls - Fixed position when configuration started */}
+                    {configurationSteps.length > 0 && (
+                        <div className="fixed top-20 right-8 z-40 bg-white shadow-lg rounded-lg border border-gray-200 p-2 flex flex-col gap-2">
+                            <Tooltip title="Zoom In" placement="left">
+                                <Button
+                                    icon={<ZoomInOutlined />}
+                                    onClick={handleZoomIn}
+                                    disabled={zoomLevel >= 150}
+                                    className="flex items-center justify-center"
+                                    size="large"
+                                />
+                            </Tooltip>
+                            <div className="text-center text-xs font-semibold text-gray-600 py-1">
+                                {zoomLevel}%
+                            </div>
+                            <Tooltip title="Zoom Out" placement="left">
+                                <Button
+                                    icon={<ZoomOutOutlined />}
+                                    onClick={handleZoomOut}
+                                    disabled={zoomLevel <= 50}
+                                    className="flex items-center justify-center"
+                                    size="large"
+                                />
+                            </Tooltip>
+                            <Tooltip title="Reset Zoom" placement="left">
+                                <Button
+                                    onClick={handleResetZoom}
+                                    className="flex items-center justify-center text-xs"
+                                    size="small"
+                                >
+                                    Reset
+                                </Button>
+                            </Tooltip>
+                        </div>
+                    )}
+
                     <div ref={scrollContainerRef} className="overflow-x-auto pb-4">
-                        <div className="min-w-fit flex flex-col items-center">
+                        <div
+                            className="min-w-fit flex flex-col items-center transition-transform duration-200 origin-top"
+                            style={{ transform: `scale(${zoomLevel / 100})` }}
+                        >
                             {/* Define Input Parameters */}
                             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 pb-8 mb-6 w-full" style={{ maxWidth: '1100px' }}>
                                 <div className="flex items-start justify-between mb-1">

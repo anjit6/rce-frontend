@@ -78,14 +78,17 @@ const generateSlug = (name: string): string => {
 // Rules Service
 export const rulesService = {
   /**
-   * Get all rules
+   * Get all rules with pagination info
    */
-  async getRules(page: number = 1, limit: number = 100, search?: string, status?: RuleStatus): Promise<Rule[]> {
+  async getRules(page: number = 1, limit: number = 100, search?: string, status?: RuleStatus): Promise<{ rules: Rule[], total: number }> {
     try {
       // Map frontend status to backend status for API call
       const apiStatus = status ? mapFrontendStatus(status) : undefined;
       const response = await rulesApi.getAll({ page, limit, search, status: apiStatus });
-      return response.data.map(apiRule => convertApiRuleToFrontend(apiRule));
+      return {
+        rules: response.data.map(apiRule => convertApiRuleToFrontend(apiRule)),
+        total: response.pagination.total
+      };
     } catch (error) {
       console.error('Failed to fetch rules:', error);
       throw error;

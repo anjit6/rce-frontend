@@ -208,12 +208,13 @@ export function compileRule(rule: Rule): string {
         code += `        }\n`;
     }
 
-    code += `        return { success: false, error: { message: "Rule execution finished without output" } };\n`;
+    code += `        return { success: false, error: { code: 400, message: "Rule execution finished without output" } };\n`;
 
     code += `    } catch (error) {\n`;
     code += `        return {\n`;
     code += `            success: false,\n`;
     code += `            error: {\n`;
+    code += `                code: 500,\n`;
     code += `                message: error.message,\n`;
     code += `                stepId: error.stepId || "unknown"\n`;
     code += `            }\n`;
@@ -266,7 +267,7 @@ function generateStepLogic(step: RuleStep): string {
 
         if (responseType === 'error') {
             const errorMessage = step.data.errorMessage ? JSON.stringify(step.data.errorMessage) : '""';
-            return `                    return {\n                        success: false,\n                        error: {\n                            code: "",\n                            message: ${errorMessage},\n                            isUserError: true\n                        }\n                    };\n`;
+            return `                    return {\n                        success: false,\n                        error: {\n                            code: 400,\n                            message: ${errorMessage},\n                            isUserError: true\n                        }\n                    };\n`;
         } else {
             const outputVal = resolveValue(step.data);
             return `                    return {\n                        success: true,\n                        value: ${outputVal}\n                    };\n`;
