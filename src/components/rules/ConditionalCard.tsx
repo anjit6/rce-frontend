@@ -4,6 +4,7 @@ import { PlusOutlined, CloseOutlined } from '@ant-design/icons';
 import { ConfigurationStep, InputParameter } from '../../types/rule-configuration';
 import { Input } from '../ui/input';
 import RuleConfigurationCard from './RuleConfigurationCard';
+import { formatStepId } from '../../utils/stepIdGenerator';
 
 interface ConditionalCardProps {
     step: ConfigurationStep;
@@ -14,9 +15,6 @@ interface ConditionalCardProps {
     onAddBranchStep?: (branch: 'true' | 'false') => void;
     handleAddBranchStep?: (stepId: string, branch: 'true' | 'false') => void;
     isViewMode?: boolean;
-    // Step number display props
-    stepNumber?: number; // Main step number (e.g., 2 in "Step 2")
-    conditionStepNumber?: number; // Sub-step number within condition branch (e.g., 1 in "Step 2 (1)")
     // All configuration steps for validation (includes all steps, not just preceding ones)
     allConfigurationSteps?: ConfigurationStep[];
 }
@@ -47,8 +45,6 @@ export default function ConditionalCard({
     onAddBranchStep,
     handleAddBranchStep,
     isViewMode = false,
-    stepNumber,
-    conditionStepNumber,
     allConfigurationSteps
 }: ConditionalCardProps) {
     const defaultCondition = {
@@ -263,11 +259,8 @@ export default function ConditionalCard({
         </div>
     );
 
-    // Generate step number display text for this conditional card
-    const displayStepNumber = stepNumber !== undefined ? stepNumber : stepIndex + 1;
-    const stepNumberText = conditionStepNumber !== undefined
-        ? `Step ${displayStepNumber} (${conditionStepNumber})`
-        : `Step ${displayStepNumber}`;
+    // Generate step number display text using hierarchical step ID
+    const stepNumberText = formatStepId(step.stepId);
 
     return (
         <>
@@ -464,11 +457,11 @@ export default function ConditionalCard({
 
                                     {/* Vertical connector line */}
                                     <div className="w-px h-8 bg-gray-300 z-10 relative"></div>
-                                    {/* TRUE button */}
-                                    <div className="px-6 py-2 bg-white border-2 border-gray-400 rounded-lg z-10 relative shadow-sm">
+                                    {/* TRUE label */}
+                                    <div className="px-6 py-2 z-10 relative">
                                         <span className="text-gray-700 font-bold text-base">TRUE</span>
                                     </div>
-                                    {/* Vertical connector line continuing from button */}
+                                    {/* Vertical connector line continuing from label */}
                                     <div className="w-px h-6 bg-gray-300"></div>
                                 </div>
 
@@ -479,11 +472,11 @@ export default function ConditionalCard({
 
                                     {/* Vertical connector line */}
                                     <div className="w-px h-8 bg-gray-300 z-10 relative"></div>
-                                    {/* FALSE button */}
-                                    <div className="px-6 py-2 bg-white border-2 border-gray-400 rounded-lg z-10 relative shadow-sm">
+                                    {/* FALSE label */}
+                                    <div className="px-6 py-2 z-10 relative">
                                         <span className="text-gray-700 font-bold text-base">FALSE</span>
                                     </div>
-                                    {/* Vertical connector line continuing from button */}
+                                    {/* Vertical connector line continuing from label */}
                                     <div className="w-px h-6 bg-gray-300"></div>
                                 </div>
                             </div>
@@ -511,8 +504,6 @@ export default function ConditionalCard({
                                                     inputParameters={inputParameters}
                                                     stepIndex={combinedSteps.length}
                                                     configurationSteps={combinedSteps}
-                                                    stepNumber={displayStepNumber}
-                                                    conditionStepNumber={index + 1}
                                                     allConfigurationSteps={allConfigurationSteps}
                                                     handleAddBranchStep={handleAddBranchStep}
                                                     onConfigUpdate={(stepId: string, stepConfig: any) => {
@@ -569,22 +560,26 @@ export default function ConditionalCard({
                                         );
                                     })}
 
-                                    {/* Add Step Button */}
-                                    {trueSteps.length > 0 && trueSteps[trueSteps.length - 1].type !== 'output' && trueSteps[trueSteps.length - 1].type !== 'conditional' && (
-                                        <div className="h-10 w-px bg-gray-300 mx-auto -mt-6"></div>
-                                    )}
-
+                                    {/* Add Step Button with connector line */}
                                     {!isViewMode && (trueSteps.length === 0 || (trueSteps[trueSteps.length - 1].type !== 'output' && trueSteps[trueSteps.length - 1].type !== 'conditional')) && (
-                                        <div className="text-center w-full flex justify-center mt-4">
+                                        <div className="text-center w-full flex flex-col items-center">
+                                            {/* Connector line to button */}
+                                            {trueSteps.length > 0 ? (
+                                                <>
+                                                    <div className="h-10 w-px bg-gray-300 mx-auto -mt-6"></div>
+                                                    <div className="w-px bg-gray-300 mx-auto" style={{ height: '16px' }}></div>
+                                                </>
+                                            ) : (
+                                                <div className="w-px bg-gray-300 mx-auto" style={{ height: '16px' }}></div>
+                                            )}
                                             <Button
-                                                type="primary"
                                                 onClick={() => {
                                                     // For nested conditionals, we need to handle adding steps to the branch
                                                     if (onAddBranchStep) {
                                                         onAddBranchStep('true');
                                                     }
                                                 }}
-                                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none px-8 shadow-md"
+                                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500 px-8 shadow-md"
                                                 size="large"
                                             >
                                                 Add Step
@@ -611,8 +606,6 @@ export default function ConditionalCard({
                                                     inputParameters={inputParameters}
                                                     stepIndex={combinedSteps.length}
                                                     configurationSteps={combinedSteps}
-                                                    stepNumber={displayStepNumber}
-                                                    conditionStepNumber={index + 1}
                                                     allConfigurationSteps={allConfigurationSteps}
                                                     handleAddBranchStep={handleAddBranchStep}
                                                     onConfigUpdate={(stepId: string, stepConfig: any) => {
@@ -669,17 +662,21 @@ export default function ConditionalCard({
                                         );
                                     })}
 
-                                    {/* Add Step Button for FALSE branch */}
-                                    {falseSteps.length > 0 && falseSteps[falseSteps.length - 1].type !== 'output' && falseSteps[falseSteps.length - 1].type !== 'conditional' && (
-                                        <div className="h-10 w-px bg-gray-300 mx-auto -mt-6"></div>
-                                    )}
-
+                                    {/* Add Step Button for FALSE branch with connector line */}
                                     {!isViewMode && (falseSteps.length === 0 || (falseSteps[falseSteps.length - 1].type !== 'output' && falseSteps[falseSteps.length - 1].type !== 'conditional')) && (
-                                        <div className="text-center w-full flex justify-center mt-4">
+                                        <div className="text-center w-full flex flex-col items-center">
+                                            {/* Connector line to button */}
+                                            {falseSteps.length > 0 ? (
+                                                <>
+                                                    <div className="h-10 w-px bg-gray-300 mx-auto -mt-6"></div>
+                                                    <div className="w-px bg-gray-300 mx-auto" style={{ height: '16px' }}></div>
+                                                </>
+                                            ) : (
+                                                <div className="w-px bg-gray-300 mx-auto" style={{ height: '16px' }}></div>
+                                            )}
                                             <Button
-                                                type="primary"
                                                 onClick={() => onAddBranchStep && onAddBranchStep('false')}
-                                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none px-8 shadow-md"
+                                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500 px-8 shadow-md"
                                                 size="large"
                                             >
                                                 Add Step

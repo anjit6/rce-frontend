@@ -12,6 +12,7 @@ import RuleConfigurationCard from '../../components/rules/RuleConfigurationCard'
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { compileRule } from '../../utils/ruleCompiler';
+import { assignStepIds } from '../../utils/stepIdGenerator';
 
 const { Panel } = Collapse;
 const { confirm } = Modal;
@@ -153,6 +154,24 @@ export default function RuleCreatePage() {
     const [subfunctionsLoading, setSubfunctionsLoading] = useState(true);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [zoomLevel, setZoomLevel] = useState(100); // Default zoom level 100%
+    const [showConfiguration, setShowConfiguration] = useState(false); // Controls empty state visibility
+
+    // Helper function to update configuration steps with automatic step ID assignment
+    const updateConfigurationSteps = (steps: ConfigurationStep[] | ((prev: ConfigurationStep[]) => ConfigurationStep[])) => {
+        if (typeof steps === 'function') {
+            const newSteps = assignStepIds(steps(configurationSteps));
+            setConfigurationSteps(newSteps);
+            if (newSteps.length > 0) {
+                setShowConfiguration(true);
+            }
+        } else {
+            const newSteps = assignStepIds(steps);
+            setConfigurationSteps(newSteps);
+            if (newSteps.length > 0) {
+                setShowConfiguration(true);
+            }
+        }
+    };
 
     // Fetch subfunctions from API on component mount
     useEffect(() => {
@@ -219,108 +238,205 @@ export default function RuleCreatePage() {
                         // Restore configuration steps from API
                         if (steps.data && steps.data.length > 0) {
                             console.log("🔄 Converting API steps to frontend format...");
-                            const convertedSteps = steps.data.map((apiStep: any) => {
-                                if (apiStep.type === 'subFunction') {
-                                    // Convert API params to UI params format
-                                    const params = apiStep.subfunction_params?.map((apiParam: any) => {
-                                        if (apiParam.data_type === 'static') {
-                                            // Static value
-                                            return {
-                                                type: 'Static Value',
-                                                dataType: 'STRING', // Default, will be inferred from param definition if needed
-                                                value: apiParam.data_value
-                                            };
-                                        } else if (apiParam.data_type === 'inputParam') {
-                                            // Input parameter - find the matching input parameter by fieldName
-                                            const matchingInputParam = inputParameters.find(ip => ip.fieldName === apiParam.data_value);
-                                            return {
-                                                type: matchingInputParam?.name || apiParam.data_value,
-                                                value: ''
-                                            };
-                                        } else if (apiParam.data_type === 'stepOutputVariable') {
-                                            // Step output variable
-                                            return {
-                                                type: apiParam.data_value,
-                                                value: ''
-                                            };
-                                        }
-                                        return { type: '', value: '' };
-                                    }) || [];
 
-                                    return {
-                                        id: apiStep.id,
-                                        type: 'subfunction' as const,
-                                        subfunctionId: apiStep.subfunction_id,
-                                        config: {
-                                            outputVariable: apiStep.output_variable_name || '',
-                                            params: params
+                            // Helper function to build nested tree structure from flat API steps
+                            const buildNestedSteps = (apiSteps: any[], inputParams: InputParameter[]): ConfigurationStep[] => {
+                                // First, track ALL referenced steps (both linear next_step and conditional branches)
+                                const referencedStepIds = new Set<string>();
+                                apiSteps.forEach((apiStep: any) => {
+                                    if (apiStep.next_step) {
+                                        if (typeof apiStep.next_step === 'string') {
+                                            // Linear next step
+                                            referencedStepIds.add(apiStep.next_step);
+                                        } else if (typeof apiStep.next_step === 'object') {
+                                            // Conditional branches
+                                            if (apiStep.next_step.true) referencedStepIds.add(apiStep.next_step.true);
+                                            if (apiStep.next_step.false) referencedStepIds.add(apiStep.next_step.false);
                                         }
-                                    };
-                                } else if (apiStep.type === 'condition') {
-                                    return {
-                                        id: apiStep.id,
-                                        type: 'conditional' as const,
-                                        config: {
-                                            conditions: apiStep.conditions?.map((cond: any) => ({
-                                                sequence: cond.sequence,
-                                                andOr: cond.and_or,
-                                                lhs: {
-                                                    type: cond.lhs_type,
-                                                    dataType: cond.lhs_data_type,
-                                                    value: cond.lhs_value
-                                                },
-                                                operator: cond.operator,
-                                                rhs: {
-                                                    type: cond.rhs_type,
-                                                    dataType: cond.rhs_data_type,
-                                                    value: cond.rhs_value
+                                    }
+                                });
+
+                                // Now convert all API steps to UI format and create a map
+                                const stepsMap = new Map<string, ConfigurationStep>();
+
+                                apiSteps.forEach((apiStep: any) => {
+                                    let convertedStep: ConfigurationStep | null = null;
+
+                                    if (apiStep.type === 'subFunction') {
+                                        const params = apiStep.subfunction_params?.map((apiParam: any) => {
+                                            if (apiParam.data_type === 'static') {
+                                                return {
+                                                    type: 'Static Value',
+                                                    dataType: 'STRING',
+                                                    value: apiParam.data_value
+                                                };
+                                            } else if (apiParam.data_type === 'inputParam') {
+                                                const matchingInputParam = inputParams.find(ip => ip.fieldName === apiParam.data_value);
+                                                return {
+                                                    type: matchingInputParam?.name || apiParam.data_value,
+                                                    value: ''
+                                                };
+                                            } else if (apiParam.data_type === 'stepOutputVariable') {
+                                                return {
+                                                    type: apiParam.data_value,
+                                                    value: ''
+                                                };
+                                            }
+                                            return { type: '', value: '' };
+                                        }) || [];
+
+                                        convertedStep = {
+                                            id: apiStep.id,
+                                            type: 'subfunction' as const,
+                                            subfunctionId: apiStep.subfunction_id,
+                                            config: {
+                                                outputVariable: apiStep.output_variable_name || '',
+                                                params: params
+                                            }
+                                        };
+                                    } else if (apiStep.type === 'condition') {
+                                        convertedStep = {
+                                            id: apiStep.id,
+                                            type: 'conditional' as const,
+                                            config: {
+                                                conditions: apiStep.conditions?.map((cond: any) => ({
+                                                    id: cond.id || String(Date.now() + Math.random()),
+                                                    sequence: cond.sequence,
+                                                    andOr: cond.and_or,
+                                                    lhs: {
+                                                        type: cond.lhs_type,
+                                                        dataType: cond.lhs_data_type,
+                                                        value: cond.lhs_value
+                                                    },
+                                                    operator: cond.operator,
+                                                    rhs: {
+                                                        type: cond.rhs_type,
+                                                        dataType: cond.rhs_data_type,
+                                                        value: cond.rhs_value
+                                                    }
+                                                })) || [],
+                                                next: {
+                                                    true: [],
+                                                    false: []
                                                 }
-                                            })) || [],
-                                            trueBranch: typeof apiStep.next_step === 'object' ? apiStep.next_step.true : null,
-                                            falseBranch: typeof apiStep.next_step === 'object' ? apiStep.next_step.false : null
+                                            }
+                                        };
+                                    } else if (apiStep.type === 'output') {
+                                        const outputData = apiStep.output_data;
+                                        let uiValue = '';
+                                        let staticValue = '';
+
+                                        if (outputData?.data_type === 'static') {
+                                            uiValue = 'Static Value';
+                                            staticValue = outputData.data_value || '';
+                                        } else if (outputData?.data_type === 'inputParam') {
+                                            const matchingInputParam = inputParams.find(ip => ip.fieldName === outputData.data_value);
+                                            uiValue = matchingInputParam?.name || outputData.data_value;
+                                        } else if (outputData?.data_type === 'stepOutputVariable') {
+                                            uiValue = outputData.data_value || '';
                                         }
-                                    };
-                                } else if (apiStep.type === 'output') {
-                                    const outputData = apiStep.output_data;
 
-                                    // Determine the UI value based on the data type
-                                    let uiValue = '';
-                                    let staticValue = '';
+                                        const dataType = outputData?.data_value_type
+                                            ? outputData.data_value_type.charAt(0).toUpperCase() + outputData.data_value_type.slice(1)
+                                            : 'String';
 
-                                    if (outputData?.data_type === 'static') {
-                                        uiValue = 'Static Value';
-                                        staticValue = outputData.data_value || '';
-                                    } else if (outputData?.data_type === 'inputParam') {
-                                        // Find the input parameter by fieldName and use its name
-                                        const matchingInputParam = inputParameters.find(ip => ip.fieldName === outputData.data_value);
-                                        uiValue = matchingInputParam?.name || outputData.data_value;
-                                    } else if (outputData?.data_type === 'stepOutputVariable') {
-                                        uiValue = outputData.data_value || '';
+                                        convertedStep = {
+                                            id: apiStep.id,
+                                            type: 'output' as const,
+                                            config: {
+                                                responseType: 'success',
+                                                type: outputData?.data_type || 'static',
+                                                dataType: dataType,
+                                                value: uiValue,
+                                                staticValue: staticValue,
+                                                errorMessage: '',
+                                                errorCode: ''
+                                            }
+                                        };
                                     }
 
-                                    // Convert data type from lowercase to PascalCase for UI
-                                    const dataType = outputData?.data_value_type
-                                        ? outputData.data_value_type.charAt(0).toUpperCase() + outputData.data_value_type.slice(1)
-                                        : 'String';
+                                    if (convertedStep) {
+                                        stepsMap.set(apiStep.id, convertedStep);
+                                    }
+                                });
 
-                                    return {
-                                        id: apiStep.id,
-                                        type: 'output' as const,
-                                        config: {
-                                            responseType: 'success', // Default to success, API doesn't store this
-                                            type: outputData?.data_type || 'static',
-                                            dataType: dataType,
-                                            value: uiValue,
-                                            staticValue: staticValue,
-                                            errorMessage: '', // Not stored in current API format
-                                            errorCode: ''
+                                // Helper function to collect steps in a branch by following next_step chain
+                                const collectBranchSteps = (startStepId: string | null): ConfigurationStep[] => {
+                                    if (!startStepId) return [];
+
+                                    const branchSteps: ConfigurationStep[] = [];
+                                    let currentStepId: string | null = startStepId;
+                                    const visited = new Set<string>();
+
+                                    while (currentStepId && !visited.has(currentStepId)) {
+                                        visited.add(currentStepId);
+
+                                        const apiStep = apiSteps.find(s => s.id === currentStepId);
+                                        const convertedStep = stepsMap.get(currentStepId);
+
+                                        if (!apiStep || !convertedStep) break;
+
+                                        // Clone the step to avoid mutations
+                                        const stepCopy = { ...convertedStep, config: { ...convertedStep.config } };
+
+                                        // If this is a conditional, recursively build its branches
+                                        if (stepCopy.type === 'conditional' && typeof apiStep.next_step === 'object') {
+                                            const trueSteps = collectBranchSteps(apiStep.next_step.true);
+                                            const falseSteps = collectBranchSteps(apiStep.next_step.false);
+
+                                            stepCopy.config = {
+                                                ...stepCopy.config,
+                                                next: {
+                                                    true: trueSteps,
+                                                    false: falseSteps
+                                                }
+                                            };
                                         }
-                                    };
-                                }
-                                return null;
-                            }).filter((step): step is NonNullable<typeof step> => step !== null);
 
-                            setConfigurationSteps(convertedSteps);
+                                        branchSteps.push(stepCopy);
+
+                                        // Move to next step (for non-conditionals or after conditional)
+                                        if (stepCopy.type === 'conditional') {
+                                            break; // Conditionals don't have a linear next_step
+                                        } else {
+                                            currentStepId = typeof apiStep.next_step === 'string' ? apiStep.next_step : null;
+                                        }
+                                    }
+
+                                    return branchSteps;
+                                };
+
+                                // Find the root step (first step that is not referenced by any other step)
+                                // There should typically be only one root step at the top level
+                                const rootApiSteps = apiSteps.filter(s => !referencedStepIds.has(s.id));
+
+                                if (rootApiSteps.length > 0) {
+                                    // Build the complete chain starting from the first root
+                                    const rootApiStep = rootApiSteps[0];
+                                    const result = collectBranchSteps(rootApiStep.id);
+                                    return result;
+                                }
+
+                                // Fallback: if no root found, return empty array
+                                console.warn("⚠️ No root step found in API data");
+                                return [];
+                            };
+
+                            const convertedSteps = buildNestedSteps(steps.data, inputParameters);
+
+                            // Debug logging for structure verification
+                            console.log("📊 API Steps Count:", steps.data.length);
+                            console.log("🌳 Root-level Converted Steps:", convertedSteps.length);
+                            console.log("🔍 Structure Preview:", JSON.stringify(convertedSteps.map(s => ({
+                                id: s.id,
+                                type: s.type,
+                                stepId: s.stepId,
+                                hasConditionalBranches: s.type === 'conditional' && s.config?.next,
+                                trueBranchCount: s.type === 'conditional' ? (s.config?.next?.true?.length || 0) : 0,
+                                falseBranchCount: s.type === 'conditional' ? (s.config?.next?.false?.length || 0) : 0
+                            })), null, 2));
+
+                            updateConfigurationSteps(convertedSteps);
                             setConfigurationStarted(true);
                             console.log("✅ Configuration steps restored from API:", convertedSteps.length, "steps");
                         }
@@ -356,7 +472,7 @@ export default function RuleCreatePage() {
 
                                     // Restore configuration steps
                                     if (ruleConfig.configurationSteps && ruleConfig.configurationSteps.length > 0) {
-                                        setConfigurationSteps(ruleConfig.configurationSteps);
+                                        updateConfigurationSteps(ruleConfig.configurationSteps);
                                         setConfigurationStarted(true);
                                         console.log("✅ Configuration steps restored from localStorage:", ruleConfig.configurationSteps.length, "steps");
                                     }
@@ -409,7 +525,6 @@ export default function RuleCreatePage() {
             const utilFunctions = subfunctions.filter(func => func.categoryId === 'UTIL' && func.name.toLowerCase().includes(searchQuery.toLowerCase()));
             const conditionalFunctions = [
                 { name: 'IF', type: 'conditional' as FunctionType },
-                { name: 'IFS', type: null },
             ].filter(func => func.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
             // Determine which accordion should open
@@ -623,7 +738,7 @@ export default function RuleCreatePage() {
                     });
 
                     setInputParameters(renumberedParams);
-                    setConfigurationSteps(updatedSteps);
+                    updateConfigurationSteps(updatedSteps);
                     setHasUnsavedChanges(true);
                 },
                 onCancel() {
@@ -766,16 +881,16 @@ export default function RuleCreatePage() {
             };
 
             const updatedSteps = updateConditionalStep(configurationSteps);
-            setConfigurationSteps(updatedSteps);
+            updateConfigurationSteps(updatedSteps);
             setActiveBranchStep(null);
         } else {
             // Insert at the specified position or at the end
             if (insertPosition >= 0 && insertPosition <= configurationSteps.length) {
                 const newSteps = [...configurationSteps];
                 newSteps.splice(insertPosition + 1, 0, newStep);
-                setConfigurationSteps(newSteps);
+                updateConfigurationSteps(newSteps);
             } else {
-                setConfigurationSteps([...configurationSteps, newStep]);
+                updateConfigurationSteps([...configurationSteps, newStep]);
             }
             setInsertPosition(-1);
         }
@@ -805,7 +920,7 @@ export default function RuleCreatePage() {
     };
 
     const handleConfigUpdate = (stepId: string, config: any) => {
-        setConfigurationSteps(configurationSteps.map(step =>
+        updateConfigurationSteps(configurationSteps.map(step =>
             step.id === stepId ? { ...step, config } : step
         ));
         setHasUnsavedChanges(true); // Mark as changed
@@ -1462,7 +1577,7 @@ export default function RuleCreatePage() {
                 setInputParameters([
                     { id: '1', name: 'Input Parameter 1', fieldName: '', type: 'Variable Data Field', dataType: 'String' }
                 ]);
-                setConfigurationSteps([]);
+                updateConfigurationSteps([]);
                 setConfigurationStarted(false);
                 setParameterErrors({});
                 setGeneratedJsCode('');
@@ -1510,7 +1625,6 @@ export default function RuleCreatePage() {
 
     const conditionalFunctions = [
         { name: 'IF', type: 'conditional' as FunctionType },
-        { name: 'IFS', type: null },
     ].filter(func => func.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
     return (
@@ -1529,377 +1643,391 @@ export default function RuleCreatePage() {
                             </Tooltip>
                         </div>
 
-                        {/* Action Buttons - Top Right */}
-                        <div className="flex gap-3 ml-6 flex-shrink-0">
-                            {isViewMode ? (
-                                <>
-                                    <Button
-                                        size="large"
-                                        type="primary"
-                                        onClick={handleEditRule}
-                                        className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none"
-                                    >
-                                        Edit Rule
-                                    </Button>
-                                    <Button
-                                        size="large"
-                                        onClick={handleGenerateJavaScript}
-                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                                    >
-                                        Show JS Code
-                                    </Button>
-                                    <Button
-                                        size="large"
-                                        onClick={handleTestRule}
-                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                                    >
-                                        Test Rule
-                                    </Button>
-                                </>
-                            ) : (
-                                <>
-                                    <Button
-                                        size="large"
-                                        onClick={handleClearRule}
-                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                                    >
-                                        Clear Rule
-                                    </Button>
-                                    <Button
-                                        size="large"
-                                        onClick={handleGenerateJavaScript}
-                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                                    >
-                                        Generate JS Code
-                                    </Button>
-                                    <Button
-                                        size="large"
-                                        onClick={handleTestRule}
-                                        className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                                    >
-                                        Test Rule
-                                    </Button>
-                                </>
-                            )}
-                        </div>
+                        {/* Action Buttons - Top Right - Hidden in empty state */}
+                        {(showConfiguration || configurationSteps.length > 0) && (
+                            <div className="flex gap-3 ml-6 flex-shrink-0">
+                                {isViewMode ? (
+                                    <>
+                                        <Button
+                                            size="large"
+                                            type="primary"
+                                            onClick={handleEditRule}
+                                            className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none"
+                                        >
+                                            Edit Rule
+                                        </Button>
+                                        <Button
+                                            size="large"
+                                            onClick={handleGenerateJavaScript}
+                                            className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                        >
+                                            Show JS Code
+                                        </Button>
+                                        <Button
+                                            size="large"
+                                            onClick={handleTestRule}
+                                            className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                        >
+                                            Test Rule
+                                        </Button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Button
+                                            size="large"
+                                            onClick={handleClearRule}
+                                            className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                        >
+                                            Clear Rule
+                                        </Button>
+                                        <Button
+                                            size="large"
+                                            onClick={handleGenerateJavaScript}
+                                            className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                        >
+                                            Show JS Code
+                                        </Button>
+                                        <Button
+                                            size="large"
+                                            onClick={handleTestRule}
+                                            className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                        >
+                                            Test Rule
+                                        </Button>
+                                    </>
+                                )}
+                            </div>
+                        )}
                     </div>
 
-                    {/* Scrollable Container for entire rule tree */}
-                    {/* Zoom Controls - Fixed position when configuration started */}
-                    {configurationSteps.length > 0 && (
-                        <div className="fixed top-20 right-8 z-40 bg-white shadow-lg rounded-lg border border-gray-200 p-2 flex flex-col gap-2">
-                            <Tooltip title="Zoom In" placement="left">
-                                <Button
-                                    icon={<ZoomInOutlined />}
-                                    onClick={handleZoomIn}
-                                    disabled={zoomLevel >= 150}
-                                    className="flex items-center justify-center"
-                                    size="large"
-                                />
-                            </Tooltip>
-                            <div className="text-center text-xs font-semibold text-gray-600 py-1">
-                                {zoomLevel}%
-                            </div>
-                            <Tooltip title="Zoom Out" placement="left">
-                                <Button
-                                    icon={<ZoomOutOutlined />}
-                                    onClick={handleZoomOut}
-                                    disabled={zoomLevel <= 50}
-                                    className="flex items-center justify-center"
-                                    size="large"
-                                />
-                            </Tooltip>
-                            <Tooltip title="Reset Zoom" placement="left">
-                                <Button
-                                    onClick={handleResetZoom}
-                                    className="flex items-center justify-center text-xs"
-                                    size="small"
-                                >
-                                    Reset
-                                </Button>
-                            </Tooltip>
+                    {/* Empty State - Show when configuration is hidden */}
+                    {!showConfiguration && (
+                        <div className="flex flex-col items-center justify-center py-20">
+                            <p className="text-lg text-gray-900 mb-6">Click configure to start building your rule</p>
+                            <Button
+                                type="primary"
+                                size="large"
+                                onClick={() => {
+                                    setShowConfiguration(true);
+                                    // If in view mode and no configuration steps exist, switch to edit mode
+                                    if (isViewMode && configurationSteps.length === 0) {
+                                        setIsViewMode(false);
+                                    }
+                                }}
+                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none rounded-lg px-8"
+                            >
+                                Configure
+                            </Button>
                         </div>
                     )}
 
-                    <div ref={scrollContainerRef} className="overflow-x-auto pb-4">
-                        <div
-                            className="min-w-fit flex flex-col items-center transition-transform duration-200 origin-top"
-                            style={{ transform: `scale(${zoomLevel / 100})` }}
-                        >
-                            {/* Define Input Parameters */}
-                            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 pb-8 mb-6 w-full" style={{ maxWidth: '1100px' }}>
-                                <div className="flex items-start justify-between mb-1">
-                                    <div>
-                                        <h2 className="text-lg font-semibold text-gray-900 mb-1">
-                                            {isViewMode ? 'Input Parameters' : 'Define Input Parameters'}
-                                        </h2>
-                                        <p className="text-sm text-gray-600">
-                                            {inputParameters.length} parameter{inputParameters.length !== 1 ? 's' : ''} defined
-                                        </p>
-                                    </div>
-                                    {!isViewMode && (
+                    {/* Scrollable Container for entire rule tree */}
+                    {(showConfiguration || configurationSteps.length > 0) && (
+                        <>
+                            {/* Zoom Controls - Fixed position when configuration started */}
+                            {configurationSteps.length > 0 && (
+                                <div className="fixed top-20 right-8 z-40 bg-white/60 shadow-lg rounded-lg p-2 flex flex-col gap-2">
+                                    <Tooltip title="Zoom In" placement="left">
                                         <Button
-                                            icon={<PlusOutlined />}
-                                            type="primary"
+                                            icon={<ZoomInOutlined />}
+                                            onClick={handleZoomIn}
+                                            disabled={zoomLevel >= 150}
+                                            className="flex items-center justify-center border-none bg-transparent hover:bg-gray-100"
                                             size="middle"
-                                            onClick={addInputParameter}
-                                            className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none rounded-lg px-6"
-                                        >
-                                            Add Parameter
-                                        </Button>
+                                        />
+                                    </Tooltip>
+                                    <div className="text-center text-xs font-semibold text-gray-600 py-1">
+                                        {zoomLevel}%
+                                    </div>
+                                    <Tooltip title="Zoom Out" placement="left">
+                                        <Button
+                                            icon={<ZoomOutOutlined />}
+                                            onClick={handleZoomOut}
+                                            disabled={zoomLevel <= 50}
+                                            className="flex items-center justify-center border-none bg-transparent hover:bg-gray-100"
+                                            size="middle"
+                                        />
+                                    </Tooltip>
+                                </div>
+                            )}
+
+                            <div ref={scrollContainerRef} className="overflow-x-auto pb-4">
+                                <div
+                                    className="min-w-fit flex flex-col items-center transition-transform duration-200 origin-top"
+                                    style={{ transform: `scale(${zoomLevel / 100})` }}
+                                >
+                                    {/* Define Input Parameters */}
+                                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 pb-8 mb-6 w-full" style={{ maxWidth: '1100px' }}>
+                                        <div className="flex items-start justify-between mb-1">
+                                            <div>
+                                                <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                                                    {isViewMode ? 'Input Parameters' : 'Define Input Parameters'}
+                                                </h2>
+                                                <p className="text-sm text-gray-600">
+                                                    {inputParameters.length} parameter{inputParameters.length !== 1 ? 's' : ''} defined
+                                                </p>
+                                            </div>
+                                            {!isViewMode && (
+                                                <Button
+                                                    icon={<PlusOutlined />}
+                                                    size="middle"
+                                                    onClick={addInputParameter}
+                                                    className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500 rounded-lg px-6"
+                                                >
+                                                    Add Parameter
+                                                </Button>
+                                            )}
+                                        </div>
+
+                                        {isViewMode ? (
+                                            /* View Mode with disabled selects and inputs */
+                                            <div className="space-y-4 max-h-[400px] overflow-y-auto mt-6 px-1 pb-1">
+                                                {inputParameters.map((param, index) => (
+                                                    <div key={param.id}>
+                                                        <div className="grid grid-cols-[1fr_1fr_1fr] gap-6 items-start">
+                                                            {/* Type Column */}
+                                                            <div>
+                                                                <Label className="text-sm font-medium text-gray-700 mb-2 block">Type</Label>
+                                                                <Select
+                                                                    value={param.type || undefined}
+                                                                    className="w-full"
+                                                                    size="large"
+                                                                    options={[
+                                                                        { label: 'Variable Data Field', value: 'VD Field' },
+                                                                        { label: 'Fixed Field', value: 'Fixed Field' }
+                                                                    ]}
+                                                                    disabled
+                                                                />
+                                                            </div>
+
+                                                            {/* Field Name Column */}
+                                                            <div>
+                                                                <Label className="text-sm font-medium text-gray-700 mb-2 block">Field Name</Label>
+                                                                <Input
+                                                                    value={param.fieldName}
+                                                                    className="w-full"
+                                                                    inputSize="lg"
+                                                                    disabled
+                                                                />
+                                                            </div>
+
+                                                            {/* Field Data Type Column */}
+                                                            <div>
+                                                                <Label className="text-sm font-medium text-gray-700 mb-2 block">Data Type</Label>
+                                                                <Select
+                                                                    value={param.dataType || 'String'}
+                                                                    className="w-full"
+                                                                    size="large"
+                                                                    options={[
+                                                                        { label: 'String', value: 'String' },
+                                                                        { label: 'Integer', value: 'Integer' },
+                                                                        { label: 'Float', value: 'Float' },
+                                                                        { label: 'Boolean', value: 'Boolean' }
+                                                                    ]}
+                                                                    disabled
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Horizontal Line Separator */}
+                                                        {index < inputParameters.length - 1 && (
+                                                            <div className="border-b border-gray-200 my-4"></div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            /* Editable Form View for Edit Mode */
+                                            <div className="space-y-4 max-h-[400px] overflow-y-auto mt-6 px-1 pb-1">
+                                                {inputParameters.map((param, index) => (
+                                                    <div key={param.id}>
+                                                        <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-6 items-start">
+                                                            {/* Type Column */}
+                                                            <div>
+                                                                <Label className="text-sm font-medium text-gray-700 mb-2 block">Type <span className="text-black">*</span></Label>
+                                                                <Select
+                                                                    showSearch
+                                                                    value={param.type || undefined}
+                                                                    onChange={(value) => updateInputParameter(param.id, 'type', value)}
+                                                                    placeholder="Select type"
+                                                                    className="w-full"
+                                                                    size="large"
+                                                                    status={parameterErrors[param.id]?.type ? 'error' : undefined}
+                                                                    options={[
+                                                                        { label: 'Variable Data Field', value: 'VD Field' },
+                                                                        { label: 'Fixed Field', value: 'Fixed Field' }
+                                                                    ]}
+                                                                    filterOption={(input, option) =>
+                                                                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                                                    }
+                                                                    popupMatchSelectWidth={false}
+                                                                    listHeight={256}
+                                                                />
+                                                                {parameterErrors[param.id]?.type && (
+                                                                    <span className="text-red-500 text-xs mt-1 block">This field is required</span>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Field Name Column */}
+                                                            <div>
+                                                                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                                                                    {param.type === 'VD Field'
+                                                                        ? 'Variable Data Field Name'
+                                                                        : param.type === 'Fixed Field'
+                                                                            ? 'Fixed Field Name'
+                                                                            : 'Variable Data Field Name'}  <span className="text-black">*</span>
+                                                                </Label>
+                                                                <Input
+                                                                    value={param.fieldName}
+                                                                    onChange={(e) => updateInputParameter(param.id, 'fieldName', e.target.value)}
+                                                                    placeholder={
+                                                                        param.type === 'VD Field'
+                                                                            ? 'Enter Variable Data Field name'
+                                                                            : param.type === 'Fixed Field'
+                                                                                ? 'Enter fixed field name'
+                                                                                : 'Enter Variable Data Field name'
+                                                                    }
+                                                                    className="w-full"
+                                                                    inputSize="lg"
+                                                                    variant={(parameterErrors[param.id]?.fieldName || parameterErrors[param.id]?.duplicate) ? 'error' : 'default'}
+                                                                />
+                                                                {parameterErrors[param.id]?.fieldName && (
+                                                                    <span className="text-red-500 text-xs mt-1 block">This field is required</span>
+                                                                )}
+                                                                {parameterErrors[param.id]?.duplicate && !parameterErrors[param.id]?.fieldName && (
+                                                                    <span className="text-red-500 text-xs mt-1 block">Field name must be unique</span>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Field Data Type Column */}
+                                                            <div>
+                                                                <Label className="text-sm font-medium text-gray-700 mb-2 block">Field Data Type <span className="text-black">*</span></Label>
+                                                                <Select
+                                                                    showSearch
+                                                                    value={param.dataType || 'String'}
+                                                                    onChange={(value) => handleDataTypeChange(param.id, param.dataType || 'String', value)}
+                                                                    placeholder="Select data type"
+                                                                    className="w-full"
+                                                                    size="large"
+                                                                    status={parameterErrors[param.id]?.dataType ? 'error' : undefined}
+                                                                    options={[
+                                                                        { label: 'String', value: 'String' },
+                                                                        { label: 'Integer', value: 'Integer' },
+                                                                        { label: 'Float', value: 'Float' },
+                                                                        { label: 'Boolean', value: 'Boolean' }
+                                                                    ]}
+                                                                    filterOption={(input, option) =>
+                                                                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                                                    }
+                                                                    popupMatchSelectWidth={false}
+                                                                    listHeight={256}
+                                                                />
+                                                                {parameterErrors[param.id]?.dataType && (
+                                                                    <span className="text-red-500 text-xs mt-1 block">This field is required</span>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Delete Button Column */}
+                                                            <div className="flex items-start justify-end pt-8">
+                                                                {inputParameters.length > 1 && (
+                                                                    <Button
+                                                                        icon={<CloseOutlined />}
+                                                                        onClick={() => removeInputParameter(param.id)}
+                                                                        className="delete-param-btn flex items-center justify-center w-9 h-9 border-none text-gray-400 transition-colors rounded-full"
+                                                                        type="text"
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Horizontal Line Separator */}
+                                                        {index < inputParameters.length - 1 && (
+                                                            <div className="border-b border-gray-200 my-4"></div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Start Configuration */}
+                                    {!isViewMode && (
+                                        <div className="flex flex-col items-center py-5">
+                                            <p className="text-base font-semibold text-gray-900 mb-4">Start Configuration</p>
+                                            <Button
+                                                size="large"
+                                                onClick={handleStartConfiguration}
+                                                disabled={configurationStarted || configurationSteps.length > 0}
+                                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500 rounded-lg px-8 disabled:bg-gray-300 disabled:text-gray-500 disabled:border-gray-300"
+                                            >
+                                                Start
+                                            </Button>
+                                        </div>
+                                    )}
+
+                                    {/* Configuration Steps */}
+                                    {configurationSteps.length > 0 && (
+                                        <>
+                                            {/* Vertical Line connecting Start to first Card */}
+                                            {!isViewMode && <div className="h-8 w-px bg-gray-300 mx-auto -mt-8"></div>}
+
+                                            {configurationSteps.map((step, index) => {
+                                                // Check if there's a conditional card in the steps
+                                                const hasConditional = configurationSteps.some(s => s.type === 'conditional');
+                                                // Add padding if this is not a conditional card and there is a conditional somewhere
+                                                const shouldAddPadding = hasConditional && step.type !== 'conditional';
+
+                                                return (
+                                                    <div key={step.id} id={`step-${step.id}`} className="w-full flex justify-center" style={step.type === 'conditional' ? { minWidth: '1600px' } : {}}>
+                                                        <div className="w-full" style={step.type !== 'conditional' ? { maxWidth: '800px' } : {}}>
+                                                            <RuleConfigurationCard
+                                                                step={step}
+                                                                inputParameters={inputParameters}
+                                                                stepIndex={index}
+                                                                configurationSteps={configurationSteps}
+                                                                onConfigUpdate={handleConfigUpdate}
+                                                                onAddBranchStep={(branch) => handleAddBranchStep(step.id, branch)}
+                                                                handleAddBranchStep={handleAddBranchStep}
+                                                                isViewMode={isViewMode}
+                                                                allConfigurationSteps={configurationSteps}
+                                                            />
+
+                                                            {/* Vertical connector line - Don't show after output card or conditional card */}
+                                                            {step.type !== 'output' && step.type !== 'conditional' && (
+                                                                <div className="h-10 w-px bg-gray-300 mx-auto -mt-6"></div>
+                                                            )}
+
+                                                            {/* Add Button - Only show for the last card if it's not an output card or conditional card */}
+                                                            {!isViewMode && index === configurationSteps.length - 1 && step.type !== 'output' && step.type !== 'conditional' && (
+                                                                <div className="flex justify-center mb-8">
+                                                                    <Button
+                                                                        className="px-8 h-10 rounded-md hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                                                        onClick={() => handleAddStep(index)}
+                                                                    >
+                                                                        Add
+                                                                    </Button>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Connector line to next card if not the last one */}
+                                                            {index < configurationSteps.length - 1 && (
+                                                                <div className="h-10 w-px bg-gray-300 mx-auto -mt-8"></div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+
+                                        </>
                                     )}
                                 </div>
-
-                                {isViewMode ? (
-                                    /* View Mode with disabled selects and inputs */
-                                    <div className="space-y-4 max-h-[400px] overflow-y-auto mt-6 px-1 pb-1">
-                                        {inputParameters.map((param, index) => (
-                                            <div key={param.id}>
-                                                <div className="grid grid-cols-[1fr_1fr_1fr] gap-6 items-start">
-                                                    {/* Type Column */}
-                                                    <div>
-                                                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Type</Label>
-                                                        <Select
-                                                            value={param.type || undefined}
-                                                            className="w-full"
-                                                            size="large"
-                                                            options={[
-                                                                { label: 'Variable Data Field', value: 'VD Field' },
-                                                                { label: 'Fixed Field', value: 'Fixed Field' }
-                                                            ]}
-                                                            disabled
-                                                        />
-                                                    </div>
-
-                                                    {/* Field Name Column */}
-                                                    <div>
-                                                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Field Name</Label>
-                                                        <Input
-                                                            value={param.fieldName}
-                                                            className="w-full"
-                                                            inputSize="lg"
-                                                            disabled
-                                                        />
-                                                    </div>
-
-                                                    {/* Field Data Type Column */}
-                                                    <div>
-                                                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Data Type</Label>
-                                                        <Select
-                                                            value={param.dataType || 'String'}
-                                                            className="w-full"
-                                                            size="large"
-                                                            options={[
-                                                                { label: 'String', value: 'String' },
-                                                                { label: 'Integer', value: 'Integer' },
-                                                                { label: 'Float', value: 'Float' },
-                                                                { label: 'Boolean', value: 'Boolean' }
-                                                            ]}
-                                                            disabled
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                {/* Horizontal Line Separator */}
-                                                {index < inputParameters.length - 1 && (
-                                                    <div className="border-b border-gray-200 my-4"></div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    /* Editable Form View for Edit Mode */
-                                    <div className="space-y-4 max-h-[400px] overflow-y-auto mt-6 px-1 pb-1">
-                                        {inputParameters.map((param, index) => (
-                                            <div key={param.id}>
-                                                <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-6 items-start">
-                                                    {/* Type Column */}
-                                                    <div>
-                                                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Type <span className="text-black">*</span></Label>
-                                                        <Select
-                                                            showSearch
-                                                            value={param.type || undefined}
-                                                            onChange={(value) => updateInputParameter(param.id, 'type', value)}
-                                                            placeholder="Select type"
-                                                            className="w-full"
-                                                            size="large"
-                                                            status={parameterErrors[param.id]?.type ? 'error' : undefined}
-                                                            options={[
-                                                                { label: 'Variable Data Field', value: 'VD Field' },
-                                                                { label: 'Fixed Field', value: 'Fixed Field' }
-                                                            ]}
-                                                            filterOption={(input, option) =>
-                                                                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                                                            }
-                                                            popupMatchSelectWidth={false}
-                                                            listHeight={256}
-                                                        />
-                                                        {parameterErrors[param.id]?.type && (
-                                                            <span className="text-red-500 text-xs mt-1 block">This field is required</span>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Field Name Column */}
-                                                    <div>
-                                                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                                            {param.type === 'VD Field'
-                                                                ? 'Variable Data Field Name'
-                                                                : param.type === 'Fixed Field'
-                                                                    ? 'Fixed Field Name'
-                                                                    : 'Variable Data Field Name'}  <span className="text-black">*</span>
-                                                        </Label>
-                                                        <Input
-                                                            value={param.fieldName}
-                                                            onChange={(e) => updateInputParameter(param.id, 'fieldName', e.target.value)}
-                                                            placeholder={
-                                                                param.type === 'VD Field'
-                                                                    ? 'Enter Variable Data Field name'
-                                                                    : param.type === 'Fixed Field'
-                                                                        ? 'Enter fixed field name'
-                                                                        : 'Enter Variable Data Field name'
-                                                            }
-                                                            className="w-full"
-                                                            inputSize="lg"
-                                                            variant={(parameterErrors[param.id]?.fieldName || parameterErrors[param.id]?.duplicate) ? 'error' : 'default'}
-                                                        />
-                                                        {parameterErrors[param.id]?.fieldName && (
-                                                            <span className="text-red-500 text-xs mt-1 block">This field is required</span>
-                                                        )}
-                                                        {parameterErrors[param.id]?.duplicate && !parameterErrors[param.id]?.fieldName && (
-                                                            <span className="text-red-500 text-xs mt-1 block">Field name must be unique</span>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Field Data Type Column */}
-                                                    <div>
-                                                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Field Data Type <span className="text-black">*</span></Label>
-                                                        <Select
-                                                            showSearch
-                                                            value={param.dataType || 'String'}
-                                                            onChange={(value) => handleDataTypeChange(param.id, param.dataType || 'String', value)}
-                                                            placeholder="Select data type"
-                                                            className="w-full"
-                                                            size="large"
-                                                            status={parameterErrors[param.id]?.dataType ? 'error' : undefined}
-                                                            options={[
-                                                                { label: 'String', value: 'String' },
-                                                                { label: 'Integer', value: 'Integer' },
-                                                                { label: 'Float', value: 'Float' },
-                                                                { label: 'Boolean', value: 'Boolean' }
-                                                            ]}
-                                                            filterOption={(input, option) =>
-                                                                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                                                            }
-                                                            popupMatchSelectWidth={false}
-                                                            listHeight={256}
-                                                        />
-                                                        {parameterErrors[param.id]?.dataType && (
-                                                            <span className="text-red-500 text-xs mt-1 block">This field is required</span>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Delete Button Column */}
-                                                    <div className="flex items-start justify-end pt-8">
-                                                        {inputParameters.length > 1 && (
-                                                            <Button
-                                                                icon={<CloseOutlined />}
-                                                                onClick={() => removeInputParameter(param.id)}
-                                                                className="delete-param-btn flex items-center justify-center w-9 h-9 border-none text-gray-400 transition-colors rounded-full"
-                                                                type="text"
-                                                            />
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                {/* Horizontal Line Separator */}
-                                                {index < inputParameters.length - 1 && (
-                                                    <div className="border-b border-gray-200 my-4"></div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
                             </div>
-
-                            {/* Start Configuration */}
-                            {!isViewMode && (
-                                <div className="flex flex-col items-center py-5">
-                                    <p className="text-base font-semibold text-gray-900 mb-4">Start Configuration</p>
-                                    <Button
-                                        type="primary"
-                                        size="large"
-                                        onClick={handleStartConfiguration}
-                                        disabled={configurationStarted || configurationSteps.length > 0}
-                                        className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none rounded-lg px-8 disabled:bg-gray-300 disabled:text-gray-500"
-                                    >
-                                        Start
-                                    </Button>
-                                </div>
-                            )}
-
-                            {/* Configuration Steps */}
-                            {configurationSteps.length > 0 && (
-                                <>
-                                    {/* Vertical Line connecting Start to first Card */}
-                                    {!isViewMode && <div className="h-8 w-px bg-gray-300 mx-auto -mt-8"></div>}
-
-                                    {configurationSteps.map((step, index) => {
-                                        // Check if there's a conditional card in the steps
-                                        const hasConditional = configurationSteps.some(s => s.type === 'conditional');
-                                        // Add padding if this is not a conditional card and there is a conditional somewhere
-                                        const shouldAddPadding = hasConditional && step.type !== 'conditional';
-
-                                        return (
-                                            <div key={step.id} id={`step-${step.id}`} className="w-full flex justify-center" style={step.type === 'conditional' ? { minWidth: '1600px' } : {}}>
-                                                <div className="w-full" style={step.type !== 'conditional' ? { maxWidth: '800px' } : {}}>
-                                                    <RuleConfigurationCard
-                                                        step={step}
-                                                        inputParameters={inputParameters}
-                                                        stepIndex={index}
-                                                        configurationSteps={configurationSteps}
-                                                        onConfigUpdate={handleConfigUpdate}
-                                                        onAddBranchStep={(branch) => handleAddBranchStep(step.id, branch)}
-                                                        handleAddBranchStep={handleAddBranchStep}
-                                                        isViewMode={isViewMode}
-                                                        stepNumber={index + 1}
-                                                        allConfigurationSteps={configurationSteps}
-                                                    />
-
-                                                    {/* Vertical connector line - Don't show after output card or conditional card */}
-                                                    {step.type !== 'output' && step.type !== 'conditional' && (
-                                                        <div className="h-10 w-px bg-gray-300 mx-auto -mt-6"></div>
-                                                    )}
-
-                                                    {/* Add Button - Only show for the last card if it's not an output card or conditional card */}
-                                                    {!isViewMode && index === configurationSteps.length - 1 && step.type !== 'output' && step.type !== 'conditional' && (
-                                                        <div className="flex justify-center mb-8">
-                                                            <Button
-                                                                type="primary"
-                                                                className="border-none px-8 h-10 rounded-md bg-red-500 hover:bg-red-400"
-                                                                onClick={() => handleAddStep(index)}
-                                                            >
-                                                                Add
-                                                            </Button>
-                                                        </div>
-                                                    )}
-
-                                                    {/* Connector line to next card if not the last one */}
-                                                    {index < configurationSteps.length - 1 && (
-                                                        <div className="h-10 w-px bg-gray-300 mx-auto -mt-8"></div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-
-                                </>
-                            )}
-                        </div>
-                    </div>
+                        </>
+                    )}
                 </div>
 
                 {/* Fixed Action Buttons Card */}
-                {!isViewMode && (
+                {!isViewMode && (showConfiguration || configurationSteps.length > 0) && (
                     <div className={`fixed bottom-0 right-0 z-50 bg-white shadow-lg py-4 flex justify-center gap-3 transition-all duration-300 ${isSidebarCollapsed ? 'left-20' : 'left-64'}`}>
                         <Button
                             type="primary"
@@ -2101,7 +2229,7 @@ export default function RuleCreatePage() {
                     {/* Panel Header */}
                     <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center z-10">
                         <h2 className="text-lg font-semibold text-gray-900">
-                            {rightPanelContent === 'js' ? 'Generated JavaScript Code' : 'Test Rule'}
+                            {rightPanelContent === 'js' ? 'JavaScript Code' : 'Test Rule'}
                         </h2>
                         <Button
                             type="text"

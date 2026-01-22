@@ -3,6 +3,7 @@ import { Select } from 'antd';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { SUBFUNCTIONS } from '../../constants/subfunctions';
+import { formatStepId } from '../../utils/stepIdGenerator';
 
 interface OutputCardProps {
     step: ConfigurationStep;
@@ -11,12 +12,9 @@ interface OutputCardProps {
     stepIndex: number;
     onConfigUpdate: (stepId: string, config: any) => void;
     isViewMode?: boolean;
-    // Step number display props
-    stepNumber?: number; // Main step number (e.g., 2 in "Step 2")
-    conditionStepNumber?: number; // Sub-step number within condition branch (e.g., 1 in "Step 2 (1)")
 }
 
-export default function OutputCard({ step, inputParameters, configurationSteps, stepIndex, onConfigUpdate, isViewMode = false, stepNumber, conditionStepNumber }: OutputCardProps) {
+export default function OutputCard({ step, inputParameters, configurationSteps, stepIndex, onConfigUpdate, isViewMode = false }: OutputCardProps) {
     const config = step.config || { responseType: 'success', type: '', dataType: '', value: '', staticValue: '', errorMessage: '', errorCode: '' };
 
     // Ensure responseType has a default value
@@ -107,11 +105,8 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
         });
     };
 
-    // Generate step number display text
-    const displayStepNumber = stepNumber !== undefined ? stepNumber : stepIndex + 1;
-    const stepNumberText = conditionStepNumber !== undefined
-        ? `Step ${displayStepNumber} (${conditionStepNumber})`
-        : `Step ${displayStepNumber}`;
+    // Generate step number display text using hierarchical step ID
+    const stepNumberText = formatStepId(step.stepId);
 
     return (
         <div className="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative" style={{ maxWidth: '800px', margin: '0 auto' }}>

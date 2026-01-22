@@ -6,6 +6,7 @@ import { Label } from '../ui/label';
 import OutputCard from './OutputCard';
 import ConditionalCard from './ConditionalCard';
 import { DataType } from '../../types/subfunction';
+import { formatStepId } from '../../utils/stepIdGenerator';
 
 // Helper function to check if input data type matches expected data type
 const isDataTypeCompatible = (expectedType: DataType, selectedType: string): boolean => {
@@ -59,14 +60,11 @@ interface RuleConfigurationCardProps {
     onAddBranchStep?: (branch: 'true' | 'false') => void;
     handleAddBranchStep?: (stepId: string, branch: 'true' | 'false') => void;
     isViewMode?: boolean;
-    // Step number display props
-    stepNumber?: number; // Main step number (e.g., 2 in "Step 2")
-    conditionStepNumber?: number; // Sub-step number within condition branch (e.g., 1 in "Step 2 (1)")
     // All configuration steps for validation (includes all steps, not just preceding ones)
     allConfigurationSteps?: ConfigurationStep[];
 }
 
-export default function RuleConfigurationCard({ step, inputParameters, stepIndex, configurationSteps = [], onConfigUpdate, onAddBranchStep, handleAddBranchStep, isViewMode = false, stepNumber, conditionStepNumber, allConfigurationSteps }: RuleConfigurationCardProps) {
+export default function RuleConfigurationCard({ step, inputParameters, stepIndex, configurationSteps = [], onConfigUpdate, onAddBranchStep, handleAddBranchStep, isViewMode = false, allConfigurationSteps }: RuleConfigurationCardProps) {
     if (!step.type) return null;
 
     // Use allConfigurationSteps if provided, otherwise fall back to configurationSteps for backward compatibility
@@ -131,11 +129,8 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                 }
             };
 
-            // Generate step number display text
-            const displayStepNumber = stepNumber !== undefined ? stepNumber : stepIndex + 1;
-            const stepNumberText = conditionStepNumber !== undefined
-                ? `Step ${displayStepNumber} (${conditionStepNumber})`
-                : `Step ${displayStepNumber}`;
+            // Generate step number display text using hierarchical step ID
+            const stepNumberText = formatStepId(step.stepId);
 
             // Check if output variable is duplicate
             const currentOutputVar = (config.outputVariable || `step_${stepIndex + 1}_output_variable`).trim().toLowerCase();
@@ -288,8 +283,6 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                     onAddBranchStep={onAddBranchStep}
                     handleAddBranchStep={handleAddBranchStep}
                     isViewMode={isViewMode}
-                    stepNumber={stepNumber}
-                    conditionStepNumber={conditionStepNumber}
                     allConfigurationSteps={allConfigurationSteps}
                 />
             );
@@ -303,8 +296,6 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                     configurationSteps={configurationSteps}
                     stepIndex={stepIndex}
                     onConfigUpdate={onConfigUpdate || (() => { })}
-                    stepNumber={stepNumber}
-                    conditionStepNumber={conditionStepNumber}
                 />
             );
 

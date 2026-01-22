@@ -13,4 +13,5 @@ export interface ConfigurationStep {
     type: FunctionType;
     subfunctionId?: number;
     config?: any;
+    stepId?: string; // Hierarchical step ID like "1", "1-1", "1-1-1"
 }
