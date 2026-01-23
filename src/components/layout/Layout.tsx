@@ -32,9 +32,9 @@ export default function Layout({ children, showSidebar = true }: LayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen w-full bg-gray-50">
       <Sidebar onCollapse={setIsSidebarCollapsed} onNavigate={handleNavigate} />
-      <main className={`transition-all duration-300 ${isSidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
+      <main className={`transition-all duration-300 min-h-screen bg-gray-50 ${isSidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
         {children}
       </main>
     </div>

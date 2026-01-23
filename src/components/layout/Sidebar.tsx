@@ -62,7 +62,7 @@ export default function Sidebar({
     onLogout,
     onCollapse
 }: SidebarProps) {
-    const [isCollapsed, setIsCollapsed] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(true);
     const [selectedKey, setSelectedKey] = useState(currentPath);
 
     const handleToggleCollapse = () => {

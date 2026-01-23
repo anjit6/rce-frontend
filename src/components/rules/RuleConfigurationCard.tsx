@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Select } from 'antd';
 import { ConfigurationStep, InputParameter } from '../../types/rule-configuration';
 import { SUBFUNCTIONS } from '../../constants/subfunctions';
@@ -59,12 +60,19 @@ interface RuleConfigurationCardProps {
     onConfigUpdate?: (stepId: string, config: any) => void;
     onAddBranchStep?: (branch: 'true' | 'false') => void;
     handleAddBranchStep?: (stepId: string, branch: 'true' | 'false') => void;
+    handleDeleteBranchStep?: (parentStepId: string, stepIdToDelete: string, branch: 'true' | 'false') => void;
+    handleDeleteMainFlowStep?: (stepId: string) => void;
+    canDelete?: boolean;
     isViewMode?: boolean;
     // All configuration steps for validation (includes all steps, not just preceding ones)
     allConfigurationSteps?: ConfigurationStep[];
+    // Flag to control when to show validation errors
+    shouldShowValidation?: boolean;
+    // Callback to notify parent about validation status
+    onValidationStatusChange?: (stepId: string, hasErrors: boolean) => void;
 }
 
-export default function RuleConfigurationCard({ step, inputParameters, stepIndex, configurationSteps = [], onConfigUpdate, onAddBranchStep, handleAddBranchStep, isViewMode = false, allConfigurationSteps }: RuleConfigurationCardProps) {
+export default function RuleConfigurationCard({ step, inputParameters, stepIndex, configurationSteps = [], onConfigUpdate, onAddBranchStep, handleAddBranchStep, handleDeleteBranchStep, handleDeleteMainFlowStep, canDelete = false, isViewMode = false, allConfigurationSteps, shouldShowValidation = false, onValidationStatusChange }: RuleConfigurationCardProps) {
     if (!step.type) return null;
 
     // Use allConfigurationSteps if provided, otherwise fall back to configurationSteps for backward compatibility
@@ -87,6 +95,68 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
             if (!subfunc) return null;
 
             const config = step.config || { params: [], outputVariable: `step_${stepIndex + 1}_output_variable` };
+
+            // State for parameter validation errors
+            const [paramErrors, setParamErrors] = useState<Record<number, { type?: string; dataType?: string; value?: string }>>({});
+
+            // Validate parameter based on subfunction configuration
+            const validateParameter = (paramIndex: number, paramConfig: any, paramDef: any) => {
+                const errors: { type?: string; dataType?: string; value?: string } = {};
+
+                // Check if mandatory parameter has a type selected
+                if (paramDef.mandatory && !paramConfig.type) {
+                    errors.type = `${paramDef.label || paramDef.name} is required`;
+                }
+
+                // If Static Value is selected, validate data type and value
+                if (paramConfig.type === 'Static Value') {
+                    if (!paramConfig.dataType) {
+                        errors.dataType = 'Data type is required';
+                    } else if (!isDataTypeCompatible(paramDef.dataType, paramConfig.dataType)) {
+                        errors.dataType = `Expected ${getDataTypeName(paramDef.dataType)} but got ${getDataTypeName(paramConfig.dataType)}`;
+                    }
+
+                    if (paramDef.mandatory && !paramConfig.value?.trim()) {
+                        errors.value = 'Value is required';
+                    }
+                } else if (paramConfig.type && paramConfig.type !== 'Static Value') {
+                    // Validate data type compatibility for input parameters and step outputs
+                    // Find the selected parameter or output variable
+                    const inputParam = inputParameters.find(p => p.name === paramConfig.type);
+                    if (inputParam) {
+                        // Check if input parameter data type is compatible
+                        const inputDataType = inputParam.dataType?.toUpperCase();
+                        if (inputDataType && !isDataTypeCompatible(paramDef.dataType, inputDataType)) {
+                            errors.type = `Expected ${getDataTypeName(paramDef.dataType)} but "${inputParam.fieldName}" is ${getDataTypeName(inputDataType)}`;
+                        }
+                    }
+                    // For step output variables, we would need to check their return types
+                    // but that's more complex and may require additional context
+                }
+
+                return errors;
+            };
+
+            // Validate all parameters - compute errors silently
+            useEffect(() => {
+                if (isViewMode) return;
+
+                const newErrors: Record<number, { type?: string; dataType?: string; value?: string }> = {};
+                subfunc.inputParams?.forEach((param, idx) => {
+                    const paramConfig = config.params?.[idx] || {};
+                    const errors = validateParameter(idx, paramConfig, param);
+                    if (Object.keys(errors).length > 0) {
+                        newErrors[idx] = errors;
+                    }
+                });
+                setParamErrors(newErrors);
+
+                // Notify parent about validation status
+                if (onValidationStatusChange) {
+                    const hasErrors = Object.keys(newErrors).length > 0;
+                    onValidationStatusChange(step.id, hasErrors);
+                }
+            }, [config.params, isViewMode, step.id, onValidationStatusChange]);
 
             const handleParamTypeChange = (paramIndex: number, type: string) => {
                 const updatedParams = [...(config.params || [])];
@@ -143,21 +213,21 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
 
             return (
                 <div className="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative" style={{ maxWidth: '800px', margin: '0 auto' }}>
-                    {/* Step Number Badge - Top Right Corner */}
-                    <div className="absolute top-3 right-3 px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">
-                        {stepNumberText}
+                    {/* Step Number Badge and Category - Top Right Corner */}
+                    <div className="absolute top-3 right-12 flex flex-row items-center gap-2">
+                        <div className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">
+                            {stepNumberText}
+                        </div>
+                        <div className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">
+                            {getCategoryName(subfunc.categoryId || 'Function')}
+                        </div>
                     </div>
 
-                    {/* Title Section with Category Badge */}
-                    <div className="mb-6">
-                        <div className="flex items-center justify-between mb-2 pr-24">
-                            <h3 className="text-lg font-semibold text-gray-900">
-                                {subfunc.name}
-                            </h3>
-                            <span className="px-3 py-1 text-sm font-medium text-blue-600 bg-blue-50 rounded">
-                                {getCategoryName(subfunc.categoryId || 'Function')}
-                            </span>
-                        </div>
+                    {/* Title Section */}
+                    <div className="mb-6 pr-24">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                            {subfunc.name}
+                        </h3>
                         <p className="text-sm text-gray-500">{subfunc.description}</p>
                     </div>
 
@@ -187,7 +257,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                             return (
                                 <div key={idx}>
                                     <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                        {param.label || param.name}
+                                        {param.label || param.name} {param.mandatory && <span className="text-black">*</span>}
                                     </Label>
                                     <Select
                                         showSearch
@@ -196,6 +266,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                                         placeholder={`Select ${param.label || param.name}`}
                                         className="w-full"
                                         size="large"
+                                        status={shouldShowValidation && paramErrors[idx]?.type ? 'error' : undefined}
                                         options={typeOptions}
                                         filterOption={(input, option: any) =>
                                             (option?.searchLabel ?? '').toLowerCase().includes(input.toLowerCase())
@@ -204,6 +275,11 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                                         listHeight={256}
                                         disabled={isViewMode}
                                     />
+                                    {shouldShowValidation && paramErrors[idx]?.type && (
+                                        <span className="text-red-500 text-xs mt-1 block">
+                                            {paramErrors[idx].type}
+                                        </span>
+                                    )}
                                     {paramConfig.type === 'Static Value' && (
                                         (() => {
                                             const expectedDataType = param.dataType;
@@ -218,7 +294,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                                                         placeholder="Select data type"
                                                         className="w-full"
                                                         size="large"
-                                                        status={hasDataTypeMismatch ? 'error' : undefined}
+                                                        status={shouldShowValidation && paramErrors[idx]?.dataType ? 'error' : undefined}
                                                         options={[
                                                             { label: 'String', value: 'STRING' },
                                                             { label: 'Number', value: 'NUMBER' },
@@ -227,9 +303,9 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                                                         ]}
                                                         disabled={isViewMode}
                                                     />
-                                                    {hasDataTypeMismatch && (
-                                                        <span className="text-red-500 text-xs">
-                                                            Expected {getDataTypeName(expectedDataType)} but got {getDataTypeName(selectedDataType)}
+                                                    {shouldShowValidation && paramErrors[idx]?.dataType && (
+                                                        <span className="text-red-500 text-xs block">
+                                                            {paramErrors[idx].dataType}
                                                         </span>
                                                     )}
                                                     <Input
@@ -238,8 +314,14 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                                                         placeholder="Enter static value"
                                                         className="w-full"
                                                         inputSize="lg"
+                                                        variant={shouldShowValidation && paramErrors[idx]?.value ? 'error' : 'default'}
                                                         disabled={isViewMode}
                                                     />
+                                                    {shouldShowValidation && paramErrors[idx]?.value && (
+                                                        <span className="text-red-500 text-xs block">
+                                                            {paramErrors[idx].value}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             );
                                         })()
@@ -282,6 +364,9 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                     onConfigUpdate={onConfigUpdate}
                     onAddBranchStep={onAddBranchStep}
                     handleAddBranchStep={handleAddBranchStep}
+                    handleDeleteBranchStep={handleDeleteBranchStep}
+                    handleDeleteMainFlowStep={handleDeleteMainFlowStep}
+                    canDelete={canDelete}
                     isViewMode={isViewMode}
                     allConfigurationSteps={allConfigurationSteps}
                 />

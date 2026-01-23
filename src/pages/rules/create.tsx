@@ -147,6 +147,8 @@ export default function RuleCreatePage() {
     const [rightPanelOpen, setRightPanelOpen] = useState(false);
     const [rightPanelContent, setRightPanelContent] = useState<'js' | 'test' | null>(null);
     const [isClosing, setIsClosing] = useState(false);
+    const [stepValidationErrors, setStepValidationErrors] = useState<Record<string, boolean>>({});
+    const [showStepValidation, setShowStepValidation] = useState(false);
     const [savedRuleFunction, setSavedRuleFunction] = useState<any>(null);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -210,9 +212,6 @@ export default function RuleCreatePage() {
 
                     // Check if this is a newly created rule from navigation state
                     const isNewRule = (location.state as any)?.isNewRule;
-
-                    // If it's a new rule, start in edit mode; otherwise, start in view mode
-                    setIsViewMode(!isNewRule);
 
                     // Try to load configuration from API first
                     try {
@@ -438,6 +437,7 @@ export default function RuleCreatePage() {
 
                             updateConfigurationSteps(convertedSteps);
                             setConfigurationStarted(true);
+                            setShowConfiguration(true);
                             console.log("✅ Configuration steps restored from API:", convertedSteps.length, "steps");
                         }
 
@@ -474,6 +474,7 @@ export default function RuleCreatePage() {
                                     if (ruleConfig.configurationSteps && ruleConfig.configurationSteps.length > 0) {
                                         updateConfigurationSteps(ruleConfig.configurationSteps);
                                         setConfigurationStarted(true);
+                                        setShowConfiguration(true);
                                         console.log("✅ Configuration steps restored from localStorage:", ruleConfig.configurationSteps.length, "steps");
                                     }
 
@@ -498,6 +499,10 @@ export default function RuleCreatePage() {
                             console.log("ℹ️ No configurations in localStorage");
                         }
                     }
+
+                    // Set view mode based on whether it's a new rule
+                    // New rules start in edit mode, existing rules start in view mode
+                    setIsViewMode(!isNewRule);
                 } catch (error) {
                     console.error('Failed to load rule:', error);
                     message.error('Failed to load rule');
@@ -910,8 +915,25 @@ export default function RuleCreatePage() {
     };
 
     const handleAddStep = (position: number) => {
+        // Check if there are any validation errors in the current steps
+        const hasValidationErrors = Object.values(stepValidationErrors).some(hasError => hasError);
+
+        if (hasValidationErrors) {
+            // Show validation errors and prevent modal from opening
+            setShowStepValidation(true);
+            return;
+        }
+
         setInsertPosition(position);
+        setShowStepValidation(false);
         setIsConfigModalOpen(true);
+    };
+
+    const handleValidationStatusChange = (stepId: string, hasErrors: boolean) => {
+        setStepValidationErrors(prev => ({
+            ...prev,
+            [stepId]: hasErrors
+        }));
     };
 
     const handleAddBranchStep = (stepId: string, branch: 'true' | 'false') => {
@@ -924,6 +946,73 @@ export default function RuleCreatePage() {
             step.id === stepId ? { ...step, config } : step
         ));
         setHasUnsavedChanges(true); // Mark as changed
+    };
+
+    // Helper function to determine if a step is a leaf node (has no children)
+    const isLeafNode = (step: ConfigurationStep): boolean => {
+        // Output cards are always leaf nodes (they can never have children)
+        if (step.type === 'output') {
+            return true;
+        }
+
+        // Subfunction cards are leaf nodes (they don't have children in this architecture)
+        if (step.type === 'subfunction') {
+            return true;
+        }
+
+        // Conditional cards are leaf nodes only if BOTH branches are empty
+        if (step.type === 'conditional' && step.config?.next) {
+            const trueIsEmpty = !step.config.next.true || step.config.next.true.length === 0;
+            const falseIsEmpty = !step.config.next.false || step.config.next.false.length === 0;
+            return trueIsEmpty && falseIsEmpty;
+        }
+
+        return false;
+    };
+
+    const handleDeleteBranchStep = (parentStepId: string, stepIdToDelete: string, branch: 'true' | 'false') => {
+        // Recursively find and update the parent conditional step to remove the specified step from its branch
+        const deleteFromSteps = (steps: ConfigurationStep[]): ConfigurationStep[] => {
+            return steps.map(step => {
+                if (step.id === parentStepId && step.type === 'conditional' && step.config?.next) {
+                    // Found the parent conditional - remove the step from the specified branch
+                    const updatedBranch = step.config.next[branch]?.filter(s => s.id !== stepIdToDelete) || [];
+                    return {
+                        ...step,
+                        config: {
+                            ...step.config,
+                            next: {
+                                ...step.config.next,
+                                [branch]: updatedBranch
+                            }
+                        }
+                    };
+                } else if (step.type === 'conditional' && step.config?.next) {
+                    // Recursively search in nested conditionals
+                    return {
+                        ...step,
+                        config: {
+                            ...step.config,
+                            next: {
+                                true: deleteFromSteps(step.config.next.true || []),
+                                false: deleteFromSteps(step.config.next.false || [])
+                            }
+                        }
+                    };
+                }
+                return step;
+            });
+        };
+
+        updateConfigurationSteps(deleteFromSteps(configurationSteps));
+        setHasUnsavedChanges(true); // Mark as changed
+    };
+
+    const handleDeleteMainFlowStep = (stepIdToDelete: string) => {
+        // Remove step from main flow
+        const updatedSteps = configurationSteps.filter(step => step.id !== stepIdToDelete);
+        updateConfigurationSteps(updatedSteps);
+        setHasUnsavedChanges(true);
     };
 
     // Zoom control functions
@@ -1304,7 +1393,6 @@ export default function RuleCreatePage() {
             setSavedRuleFunction(ruleFunction);
 
             // Show success confirmation modal
-            message.success('Rule saved successfully!');
             Modal.confirm({
                 title: 'Rule Saved Successfully',
                 content: 'Your rule configuration has been saved to the database.',
@@ -1629,11 +1717,11 @@ export default function RuleCreatePage() {
 
     return (
         <Layout>
-            <div className="min-h-screen bg-gray-50 pb-24">
+            <div className="min-h-screen w-full bg-gray-50 pb-24">
                 {/* Main Content Area */}
-                <div className="px-8 py-6 max-w-full">
+                <div className="px-8 py-6 w-full bg-gray-50">
                     {/* Rule Title and Action Buttons */}
-                    <div className="mb-6 max-w-full overflow-hidden flex justify-between items-start">
+                    <div className="mb-6 max-w-full overflow-hidden flex justify-between items-start bg-gray-50">
                         <div className="flex-1 min-w-0">
                             <Tooltip title={rule.name}>
                                 <h1 className="text-xl font-bold text-gray-900 truncate cursor-pointer">{rule.name}</h1>
@@ -1644,7 +1732,7 @@ export default function RuleCreatePage() {
                         </div>
 
                         {/* Action Buttons - Top Right - Hidden in empty state */}
-                        {(showConfiguration || configurationSteps.length > 0) && (
+                        {showConfiguration && (!isViewMode || configurationSteps.length > 0) && (
                             <div className="flex gap-3 ml-6 flex-shrink-0">
                                 {isViewMode ? (
                                     <>
@@ -1700,8 +1788,8 @@ export default function RuleCreatePage() {
                         )}
                     </div>
 
-                    {/* Empty State - Show when configuration is hidden */}
-                    {!showConfiguration && (
+                    {/* Empty State - Show when configuration is hidden OR in view mode with no steps */}
+                    {(!showConfiguration || (isViewMode && configurationSteps.length === 0)) && (
                         <div className="flex flex-col items-center justify-center py-20">
                             <p className="text-lg text-gray-900 mb-6">Click configure to start building your rule</p>
                             <Button
@@ -1722,8 +1810,8 @@ export default function RuleCreatePage() {
                     )}
 
                     {/* Scrollable Container for entire rule tree */}
-                    {(showConfiguration || configurationSteps.length > 0) && (
-                        <>
+                    {showConfiguration && (!isViewMode || configurationSteps.length > 0) && (
+                        <div className="w-full min-h-screen bg-gray-50">
                             {/* Zoom Controls - Fixed position when configuration started */}
                             {configurationSteps.length > 0 && (
                                 <div className="fixed top-20 right-8 z-40 bg-white/60 shadow-lg rounded-lg p-2 flex flex-col gap-2">
@@ -1751,9 +1839,9 @@ export default function RuleCreatePage() {
                                 </div>
                             )}
 
-                            <div ref={scrollContainerRef} className="overflow-x-auto pb-4">
+                            <div ref={scrollContainerRef} className="bg-gray-50">
                                 <div
-                                    className="min-w-fit flex flex-col items-center transition-transform duration-200 origin-top"
+                                    className="min-w-fit flex flex-col items-center transition-transform duration-200 origin-top bg-gray-50"
                                     style={{ transform: `scale(${zoomLevel / 100})` }}
                                 >
                                     {/* Define Input Parameters */}
@@ -1764,7 +1852,14 @@ export default function RuleCreatePage() {
                                                     {isViewMode ? 'Input Parameters' : 'Define Input Parameters'}
                                                 </h2>
                                                 <p className="text-sm text-gray-600">
-                                                    {inputParameters.length} parameter{inputParameters.length !== 1 ? 's' : ''} defined
+                                                    {(() => {
+                                                        const completedParams = inputParameters.filter(param =>
+                                                            param.type &&
+                                                            param.fieldName.trim() &&
+                                                            param.dataType
+                                                        );
+                                                        return `${completedParams.length} parameter${completedParams.length !== 1 ? 's' : ''} defined`;
+                                                    })()}
                                                 </p>
                                             </div>
                                             {!isViewMode && (
@@ -1952,7 +2047,7 @@ export default function RuleCreatePage() {
 
                                     {/* Start Configuration */}
                                     {!isViewMode && (
-                                        <div className="flex flex-col items-center py-5">
+                                        <div className="flex flex-col items-center py-5 bg-gray-50">
                                             <p className="text-base font-semibold text-gray-900 mb-4">Start Configuration</p>
                                             <Button
                                                 size="large"
@@ -1976,10 +2071,23 @@ export default function RuleCreatePage() {
                                                 const hasConditional = configurationSteps.some(s => s.type === 'conditional');
                                                 // Add padding if this is not a conditional card and there is a conditional somewhere
                                                 const shouldAddPadding = hasConditional && step.type !== 'conditional';
+                                                // Check if this is the last step and it's a leaf node
+                                                const isLastStep = index === configurationSteps.length - 1;
+                                                const canDelete = isLastStep && isLeafNode(step);
 
                                                 return (
-                                                    <div key={step.id} id={`step-${step.id}`} className="w-full flex justify-center" style={step.type === 'conditional' ? { minWidth: '1600px' } : {}}>
-                                                        <div className="w-full" style={step.type !== 'conditional' ? { maxWidth: '800px' } : {}}>
+                                                    <div key={step.id} id={`step-${step.id}`} className="w-full flex justify-center bg-gray-50" style={step.type === 'conditional' ? { minWidth: '1600px' } : {}}>
+                                                        <div className="w-full relative bg-gray-50" style={step.type !== 'conditional' ? { maxWidth: '800px' } : {}}>
+                                                            {/* Delete button for leaf node in main flow */}
+                                                            {!isViewMode && canDelete && step.type !== 'conditional' && (
+                                                                <Button
+                                                                    icon={<CloseOutlined />}
+                                                                    onClick={() => handleDeleteMainFlowStep(step.id)}
+                                                                    className="absolute top-3 right-3 z-20 bg-gray-100 hover:bg-red-100 hover:text-red-600 border-none shadow-sm rounded-full"
+                                                                    type="text"
+                                                                    size="small"
+                                                                />
+                                                            )}
                                                             <RuleConfigurationCard
                                                                 step={step}
                                                                 inputParameters={inputParameters}
@@ -1988,8 +2096,13 @@ export default function RuleCreatePage() {
                                                                 onConfigUpdate={handleConfigUpdate}
                                                                 onAddBranchStep={(branch) => handleAddBranchStep(step.id, branch)}
                                                                 handleAddBranchStep={handleAddBranchStep}
+                                                                handleDeleteBranchStep={handleDeleteBranchStep}
+                                                                handleDeleteMainFlowStep={handleDeleteMainFlowStep}
+                                                                canDelete={canDelete}
                                                                 isViewMode={isViewMode}
                                                                 allConfigurationSteps={configurationSteps}
+                                                                shouldShowValidation={showStepValidation}
+                                                                onValidationStatusChange={handleValidationStatusChange}
                                                             />
 
                                                             {/* Vertical connector line - Don't show after output card or conditional card */}
@@ -1999,7 +2112,7 @@ export default function RuleCreatePage() {
 
                                                             {/* Add Button - Only show for the last card if it's not an output card or conditional card */}
                                                             {!isViewMode && index === configurationSteps.length - 1 && step.type !== 'output' && step.type !== 'conditional' && (
-                                                                <div className="flex justify-center mb-8">
+                                                                <div className="flex justify-center mb-8 bg-gray-50">
                                                                     <Button
                                                                         className="px-8 h-10 rounded-md hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
                                                                         onClick={() => handleAddStep(index)}
@@ -2022,12 +2135,12 @@ export default function RuleCreatePage() {
                                     )}
                                 </div>
                             </div>
-                        </>
+                        </div>
                     )}
                 </div>
 
                 {/* Fixed Action Buttons Card */}
-                {!isViewMode && (showConfiguration || configurationSteps.length > 0) && (
+                {!isViewMode && showConfiguration && (
                     <div className={`fixed bottom-0 right-0 z-50 bg-white shadow-lg py-4 flex justify-center gap-3 transition-all duration-300 ${isSidebarCollapsed ? 'left-20' : 'left-64'}`}>
                         <Button
                             type="primary"

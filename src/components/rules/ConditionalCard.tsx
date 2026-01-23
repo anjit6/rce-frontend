@@ -3,6 +3,7 @@ import { Select, Button, Popover } from 'antd';
 import { PlusOutlined, CloseOutlined } from '@ant-design/icons';
 import { ConfigurationStep, InputParameter } from '../../types/rule-configuration';
 import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 import RuleConfigurationCard from './RuleConfigurationCard';
 import { formatStepId } from '../../utils/stepIdGenerator';
 
@@ -14,9 +15,13 @@ interface ConditionalCardProps {
     onConfigUpdate?: (stepId: string, config: any) => void;
     onAddBranchStep?: (branch: 'true' | 'false') => void;
     handleAddBranchStep?: (stepId: string, branch: 'true' | 'false') => void;
+    handleDeleteBranchStep?: (parentStepId: string, stepIdToDelete: string, branch: 'true' | 'false') => void;
+    handleDeleteMainFlowStep?: (stepId: string) => void;
     isViewMode?: boolean;
     // All configuration steps for validation (includes all steps, not just preceding ones)
     allConfigurationSteps?: ConfigurationStep[];
+    // Flag to indicate if this card can be deleted (is last and leaf node)
+    canDelete?: boolean;
 }
 
 interface Condition {
@@ -44,15 +49,18 @@ export default function ConditionalCard({
     onConfigUpdate,
     onAddBranchStep,
     handleAddBranchStep,
+    handleDeleteBranchStep,
+    handleDeleteMainFlowStep,
     isViewMode = false,
-    allConfigurationSteps
+    allConfigurationSteps,
+    canDelete = false
 }: ConditionalCardProps) {
     const defaultCondition = {
         id: '1',
         sequence: 1,
         andOr: null,
         lhs: { type: '', value: '', dataType: 'String' },
-        operator: 'equals',
+        operator: '',
         rhs: { type: '', value: '', dataType: 'String' }
     };
 
@@ -113,8 +121,8 @@ export default function ConditionalCard({
     const trueBranchMinWidth = calculateBranchWidth(trueSteps);
     const falseBranchMinWidth = calculateBranchWidth(falseSteps);
 
-    // Build options for LHS/RHS Type dropdowns
-    const typeOptions = [
+    // Build base options (without Static Value)
+    const baseTypeOptions = [
         ...inputParameters.map(p => ({
             label: <div title={p.fieldName} className="truncate">{p.fieldName}</div>,
             value: p.name,
@@ -127,7 +135,15 @@ export default function ConditionalCard({
                 label: <div title={s.config.outputVariable} className="truncate">{s.config.outputVariable}</div>,
                 value: s.config.outputVariable,
                 searchLabel: s.config.outputVariable
-            })),
+            }))
+    ];
+
+    // LHS options (without Static Value)
+    const typeOptionsLHS = baseTypeOptions;
+
+    // RHS options (with Static Value)
+    const typeOptionsRHS = [
+        ...baseTypeOptions,
         { label: 'Static Value', value: 'Static Value', searchLabel: 'Static Value' }
     ];
 
@@ -210,7 +226,7 @@ export default function ConditionalCard({
             sequence: conditions.length + 1,
             andOr: type,
             lhs: { type: '', value: '', dataType: 'String' },
-            operator: 'equals',
+            operator: '',
             rhs: { type: '', value: '', dataType: 'String' }
         };
 
@@ -259,25 +275,58 @@ export default function ConditionalCard({
         </div>
     );
 
+    // Helper function to determine if a step is a leaf node (has no children)
+    const isLeafNode = (step: ConfigurationStep): boolean => {
+        // Output cards are always leaf nodes (they can never have children)
+        if (step.type === 'output') {
+            return true;
+        }
+
+        // Subfunction cards are leaf nodes (they don't have children in this architecture)
+        if (step.type === 'subfunction') {
+            return true;
+        }
+
+        // Conditional cards are leaf nodes only if BOTH branches are empty
+        if (step.type === 'conditional' && step.config?.next) {
+            const trueIsEmpty = !step.config.next.true || step.config.next.true.length === 0;
+            const falseIsEmpty = !step.config.next.false || step.config.next.false.length === 0;
+            return trueIsEmpty && falseIsEmpty;
+        }
+
+        return false;
+    };
+
     // Generate step number display text using hierarchical step ID
     const stepNumberText = formatStepId(step.stepId);
 
     return (
         <>
             <div className="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative overflow-visible" style={{ maxWidth: '800px', margin: '0 auto' }}>
-                {/* Step Number Badge - Top Right Corner */}
-                <div className="absolute top-3 right-3 px-3 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded">
-                    {stepNumberText}
+                {/* Delete button for leaf conditional in main flow */}
+                {!isViewMode && canDelete && handleDeleteMainFlowStep && (
+                    <Button
+                        icon={<CloseOutlined />}
+                        onClick={() => handleDeleteMainFlowStep(step.id)}
+                        className="absolute top-3 right-3 z-20 bg-gray-100 hover:bg-red-100 hover:text-red-600 border-none shadow-sm rounded-full"
+                        type="text"
+                        size="small"
+                    />
+                )}
+
+                {/* Step Number Badge and Category - Top Right Corner */}
+                <div className="absolute top-3 right-12 flex flex-row items-center gap-2">
+                    <div className="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded">
+                        {stepNumberText}
+                    </div>
+                    <div className="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded">
+                        Conditional
+                    </div>
                 </div>
 
                 {/* Title Section */}
-                <div className="mb-6">
-                    <div className="flex items-center justify-between mb-2 pr-24">
-                        <h3 className="text-lg font-semibold text-gray-900">Conditional If</h3>
-                        <span className="px-3 py-1 text-sm font-medium text-purple-600 bg-purple-50 rounded">
-                            Conditional
-                        </span>
-                    </div>
+                <div className="mb-6 pr-24">
+                    <h3 className="text-lg font-semibold text-gray-900">Conditional If</h3>
                 </div>
 
                 {/* Conditions */}
@@ -299,14 +348,15 @@ export default function ConditionalCard({
                             <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-3 items-start py-3 rounded-lg overflow-visible">
                                 {/* Left Hand Side (LHS) */}
                                 <div className="space-y-2 overflow-visible min-w-0">
+                                    <Label className="text-sm font-medium text-gray-900">Type </Label>
                                     <Select
                                         showSearch
                                         value={condition.lhs.type || undefined}
                                         onChange={(value) => handleSideTypeChange(index, 'lhs', value)}
-                                        placeholder="Select value"
+                                        placeholder="Select Input"
                                         className="w-full"
                                         size="large"
-                                        options={typeOptions}
+                                        options={typeOptionsLHS}
                                         filterOption={(input, option: any) =>
                                             (option?.searchLabel ?? '').toLowerCase().includes(input.toLowerCase())
                                         }
@@ -316,6 +366,7 @@ export default function ConditionalCard({
                                     />
                                     {condition.lhs.type === 'Static Value' && (
                                         <>
+                                            <Label className="text-sm font-medium text-gray-900">Data Type </Label>
                                             <Select
                                                 value={condition.lhs.dataType || 'String'}
                                                 onChange={(value) => handleConditionChange(index, 'lhs.dataType', value)}
@@ -325,6 +376,7 @@ export default function ConditionalCard({
                                                 options={dataTypeOptions}
                                                 disabled={isViewMode}
                                             />
+                                            <Label className="text-sm font-medium text-gray-900">Value </Label>
                                             <Input
                                                 type={condition.lhs.dataType === 'Date' ? 'date' : (condition.lhs.dataType === 'Integer' || condition.lhs.dataType === 'Float') ? 'number' : 'text'}
                                                 value={condition.lhs.value}
@@ -339,12 +391,13 @@ export default function ConditionalCard({
                                 </div>
 
                                 {/* Operator */}
-                                <div className="min-w-0">
+                                <div className="space-y-2 min-w-0">
+                                    <Label className="text-sm font-medium text-gray-900">Operator </Label>
                                     <Select
                                         showSearch
-                                        value={condition.operator}
+                                        value={undefined}
                                         onChange={(value) => handleConditionChange(index, 'operator', value)}
-                                        placeholder="Select operator"
+                                        placeholder="Select Condition"
                                         className="w-full"
                                         size="large"
                                         options={operatorOptions}
@@ -359,14 +412,15 @@ export default function ConditionalCard({
 
                                 {/* Right Hand Side (RHS) */}
                                 <div className="space-y-2 overflow-visible min-w-0">
+                                    <Label className="text-sm font-medium text-gray-900">Type </Label>
                                     <Select
                                         showSearch
                                         value={condition.rhs.type || undefined}
                                         onChange={(value) => handleSideTypeChange(index, 'rhs', value)}
-                                        placeholder="Select value"
+                                        placeholder="Select Value"
                                         className="w-full"
                                         size="large"
-                                        options={typeOptions}
+                                        options={typeOptionsRHS}
                                         filterOption={(input, option: any) =>
                                             (option?.searchLabel ?? '').toLowerCase().includes(input.toLowerCase())
                                         }
@@ -376,6 +430,7 @@ export default function ConditionalCard({
                                     />
                                     {condition.rhs.type === 'Static Value' && (
                                         <>
+                                            <Label className="text-sm font-medium text-gray-900">Data Type </Label>
                                             <Select
                                                 value={condition.rhs.dataType || 'String'}
                                                 onChange={(value) => handleConditionChange(index, 'rhs.dataType', value)}
@@ -385,6 +440,7 @@ export default function ConditionalCard({
                                                 options={dataTypeOptions}
                                                 disabled={isViewMode}
                                             />
+                                            <Label className="text-sm font-medium text-gray-900">Value </Label>
                                             <Input
                                                 type={condition.rhs.dataType === 'Date' ? 'date' : (condition.rhs.dataType === 'Integer' || condition.rhs.dataType === 'Float') ? 'number' : 'text'}
                                                 value={condition.rhs.value}
@@ -437,21 +493,21 @@ export default function ConditionalCard({
             </div>
 
             {/* Connector lines and Branch Tree - Always show */}
-            <div className="relative z-0 overflow-x-auto">
-                <div className="min-w-max">
+            <div className="relative z-0 overflow-x-auto bg-gray-50">
+                <div className="min-w-max bg-gray-50">
                     {/* Main vertical connector line from bottom-center of card */}
                     <div className="flex justify-center">
                         <div className="w-px h-16 bg-gray-300"></div>
                     </div>
 
                     {/* Branch Tree Container */}
-                    <div className="relative overflow-visible">
+                    <div className="relative overflow-visible bg-gray-50">
                         {/* Horizontal and vertical branch connectors */}
-                        <div className="relative">
+                        <div className="relative bg-gray-50">
                             {/* Use flex with same gap as cards to ensure alignment */}
-                            <div className="flex gap-6 items-start justify-center">
+                            <div className="flex gap-6 items-start justify-center bg-gray-50">
                                 {/* TRUE Branch Connector (Left) */}
-                                <div className="flex flex-col items-center relative" style={{ minWidth: `${trueBranchMinWidth}px`, width: `${trueBranchMinWidth}px` }}>
+                                <div className="flex flex-col items-center relative bg-gray-50" style={{ minWidth: `${trueBranchMinWidth}px`, width: `${trueBranchMinWidth}px` }}>
                                     {/* Horizontal line segment from center to right edge */}
                                     <div className="absolute top-0 left-1/2 h-px bg-gray-300 z-0" style={{ width: `calc(50% + 12px)` }}></div>
 
@@ -466,7 +522,7 @@ export default function ConditionalCard({
                                 </div>
 
                                 {/* FALSE Branch Connector (Right) */}
-                                <div className="flex flex-col items-center relative" style={{ minWidth: `${falseBranchMinWidth}px`, width: `${falseBranchMinWidth}px` }}>
+                                <div className="flex flex-col items-center relative bg-gray-50" style={{ minWidth: `${falseBranchMinWidth}px`, width: `${falseBranchMinWidth}px` }}>
                                     {/* Horizontal line segment from left edge to center */}
                                     <div className="absolute top-0 right-1/2 h-px bg-gray-300 z-0" style={{ width: `calc(50% + 12px)` }}></div>
 
@@ -486,10 +542,10 @@ export default function ConditionalCard({
                         </div>
 
                         {/* Branch Cards - Both visible side by side */}
-                        <div className="flex gap-6 mt-0 items-start justify-center"> {/* items-start to ensure top alignment */}
+                        <div className="flex gap-6 mt-0 items-start justify-center bg-gray-50"> {/* items-start to ensure top alignment */}
                             {/* TRUE Branch Card */}
-                            <div className="flex flex-col" style={{ minWidth: `${trueBranchMinWidth}px`, width: `${trueBranchMinWidth}px` }}>
-                                <div className="flex flex-col w-full items-center"> {/* Centering content */}
+                            <div className="flex flex-col bg-gray-50" style={{ minWidth: `${trueBranchMinWidth}px`, width: `${trueBranchMinWidth}px` }}>
+                                <div className="flex flex-col w-full items-center bg-gray-50"> {/* Centering content */}
                                     {/* Render TRUE branch steps */}
                                     {trueSteps.map((trueStep: ConfigurationStep, index: number) => {
                                         // Combine parent steps (before conditional) with previous branch steps
@@ -498,7 +554,17 @@ export default function ConditionalCard({
                                             ...trueSteps.slice(0, index)
                                         ];
                                         return (
-                                            <div key={trueStep.id} id={`step-${trueStep.id}`} className="w-full flex flex-col items-center">
+                                            <div key={trueStep.id} id={`step-${trueStep.id}`} className="w-full flex flex-col items-center relative">
+                                                {/* Delete button for leaf node - only show on last card if it's a leaf node */}
+                                                {!isViewMode && handleDeleteBranchStep && index === trueSteps.length - 1 && isLeafNode(trueStep) && (
+                                                    <Button
+                                                        icon={<CloseOutlined />}
+                                                        onClick={() => handleDeleteBranchStep(step.id, trueStep.id, 'true')}
+                                                        className="absolute top-3 right-3 z-20 bg-gray-100 hover:bg-red-100 hover:text-red-600 border-none shadow-sm rounded-full"
+                                                        type="text"
+                                                        size="small"
+                                                    />
+                                                )}
                                                 <RuleConfigurationCard
                                                     step={trueStep}
                                                     inputParameters={inputParameters}
@@ -506,6 +572,8 @@ export default function ConditionalCard({
                                                     configurationSteps={combinedSteps}
                                                     allConfigurationSteps={allConfigurationSteps}
                                                     handleAddBranchStep={handleAddBranchStep}
+                                                    handleDeleteBranchStep={handleDeleteBranchStep}
+                                                    handleDeleteMainFlowStep={handleDeleteMainFlowStep}
                                                     onConfigUpdate={(stepId: string, stepConfig: any) => {
                                                         // Update the step in TRUE branch - need to recursively update
                                                         const updateStepRecursively = (steps: ConfigurationStep[]): ConfigurationStep[] => {
@@ -590,8 +658,8 @@ export default function ConditionalCard({
                             </div>
 
                             {/* FALSE Branch Card */}
-                            <div className="flex flex-col" style={{ minWidth: `${falseBranchMinWidth}px`, width: `${falseBranchMinWidth}px` }}>
-                                <div className="flex flex-col items-center w-full">
+                            <div className="flex flex-col bg-gray-50" style={{ minWidth: `${falseBranchMinWidth}px`, width: `${falseBranchMinWidth}px` }}>
+                                <div className="flex flex-col items-center w-full bg-gray-50">
                                     {/* Render FALSE branch steps (output card) */}
                                     {falseSteps.map((falseStep: ConfigurationStep, index: number) => {
                                         // Combine parent steps (before conditional) with previous branch steps
@@ -600,7 +668,17 @@ export default function ConditionalCard({
                                             ...falseSteps.slice(0, index)
                                         ];
                                         return (
-                                            <div key={falseStep.id} id={`step-${falseStep.id}`} className="w-full flex flex-col items-center">
+                                            <div key={falseStep.id} id={`step-${falseStep.id}`} className="w-full flex flex-col items-center relative">
+                                                {/* Delete button for leaf node - only show on last card if it's a leaf node */}
+                                                {!isViewMode && handleDeleteBranchStep && index === falseSteps.length - 1 && isLeafNode(falseStep) && (
+                                                    <Button
+                                                        icon={<CloseOutlined />}
+                                                        onClick={() => handleDeleteBranchStep(step.id, falseStep.id, 'false')}
+                                                        className="absolute top-3 right-3 z-20 bg-gray-100 hover:bg-red-100 hover:text-red-600 border-none shadow-sm rounded-full"
+                                                        type="text"
+                                                        size="small"
+                                                    />
+                                                )}
                                                 <RuleConfigurationCard
                                                     step={falseStep}
                                                     inputParameters={inputParameters}
@@ -608,6 +686,8 @@ export default function ConditionalCard({
                                                     configurationSteps={combinedSteps}
                                                     allConfigurationSteps={allConfigurationSteps}
                                                     handleAddBranchStep={handleAddBranchStep}
+                                                    handleDeleteBranchStep={handleDeleteBranchStep}
+                                                    handleDeleteMainFlowStep={handleDeleteMainFlowStep}
                                                     onConfigUpdate={(stepId: string, stepConfig: any) => {
                                                         // Update the step in FALSE branch - need to recursively update
                                                         const updateStepRecursively = (steps: ConfigurationStep[]): ConfigurationStep[] => {
