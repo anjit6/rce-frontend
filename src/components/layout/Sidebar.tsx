@@ -12,6 +12,7 @@ import {
     UserOutlined
 } from '@ant-design/icons';
 import { LogOut } from 'lucide-react';
+import logoImage from '@/assets/images/logo.png';
 
 type MenuItem = Required<MenuProps>['items'][number];
 
@@ -110,7 +111,7 @@ export default function Sidebar({
                         {/* Logo - Bottom when collapsed */}
                         <div className="w-10 h-10 flex items-center justify-center">
                             <img
-                                src="/src/assets/images/logo.png"
+                                src={logoImage}
                                 alt="Logo"
                                 className="w-10 h-10 object-contain"
                             />
@@ -120,7 +121,7 @@ export default function Sidebar({
                     <>
                         <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
                             <img
-                                src="/src/assets/images/logo.png"
+                                src={logoImage}
                                 alt="Logo"
                                 className="w-10 h-10 object-contain"
                             />
