@@ -4,14 +4,19 @@ import { createPortal } from "react-dom"
 import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-export interface CustomSelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'size'> {
+export interface CustomSelectProps {
+  className?: string
   selectSize?: 'sm' | 'default' | 'lg'
   variant?: 'default' | 'error'
   options?: Array<{ value: string; label: string }>
+  value?: string | number | readonly string[]
+  onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void
+  children?: React.ReactNode
+  disabled?: boolean
 }
 
 const CustomSelect = React.forwardRef<HTMLDivElement, CustomSelectProps>(
-  ({ className, selectSize = 'default', variant = 'default', value, onChange, options = [], children, ...props }, ref) => {
+  ({ className, selectSize = 'default', variant = 'default', value, onChange, options = [], children, disabled }) => {
     const [isOpen, setIsOpen] = useState(false)
     const [selectedValue, setSelectedValue] = useState(value || '')
     const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 })
@@ -128,6 +133,7 @@ const CustomSelect = React.forwardRef<HTMLDivElement, CustomSelectProps>(
             type="button"
             onClick={handleToggle}
             onMouseDown={(e) => e.preventDefault()}
+            disabled={disabled}
             className={cn(
               "flex w-full items-center justify-between rounded-md border bg-white px-3 py-2 transition-colors appearance-none cursor-pointer focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
               sizeClasses[selectSize],
@@ -135,7 +141,6 @@ const CustomSelect = React.forwardRef<HTMLDivElement, CustomSelectProps>(
               isOpen && "border-red-500",
               className
             )}
-            {...props}
           >
             <span className="truncate">{selectedLabel}</span>
             <ChevronDown className={cn(

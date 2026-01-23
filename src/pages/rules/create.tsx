@@ -137,9 +137,7 @@ export default function RuleCreatePage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [activeAccordionKeys, setActiveAccordionKeys] = useState<string[]>([]);
     const [parameterErrors, setParameterErrors] = useState<Record<string, { type?: boolean; fieldName?: boolean; dataType?: boolean; duplicate?: boolean }>>({});
-    const [isJsonModalOpen, setIsJsonModalOpen] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
-    const [currentJson, setCurrentJson] = useState<any>(null);
     const [generatedJsCode, setGeneratedJsCode] = useState<string>('');
     const [testInputs, setTestInputs] = useState<Record<string, any>>({});
     const [testResult, setTestResult] = useState<any>(null);
@@ -149,11 +147,8 @@ export default function RuleCreatePage() {
     const [isClosing, setIsClosing] = useState(false);
     const [stepValidationErrors, setStepValidationErrors] = useState<Record<string, boolean>>({});
     const [showStepValidation, setShowStepValidation] = useState(false);
-    const [savedRuleFunction, setSavedRuleFunction] = useState<any>(null);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-    const [loading, setLoading] = useState(false);
     const [subfunctions, setSubfunctions] = useState<Subfunction[]>([]);
-    const [subfunctionsLoading, setSubfunctionsLoading] = useState(true);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [zoomLevel, setZoomLevel] = useState(100); // Default zoom level 100%
     const [showConfiguration, setShowConfiguration] = useState(false); // Controls empty state visibility
@@ -179,14 +174,11 @@ export default function RuleCreatePage() {
     useEffect(() => {
         const fetchSubfunctions = async () => {
             try {
-                setSubfunctionsLoading(true);
                 const data = await subfunctionsService.getSubfunctions();
                 setSubfunctions(data);
             } catch (error) {
                 console.error('Failed to fetch subfunctions:', error);
                 message.error('Failed to load subfunctions');
-            } finally {
-                setSubfunctionsLoading(false);
             }
         };
 
@@ -197,7 +189,6 @@ export default function RuleCreatePage() {
         if (ruleId) {
             const loadRuleData = async () => {
                 try {
-                    setLoading(true);
 
                     // Load rule metadata from API
                     const ruleData = await rulesService.getRuleById(parseInt(ruleId));
@@ -480,7 +471,6 @@ export default function RuleCreatePage() {
 
                                     // Store the saved ruleFunction (including the generated code)
                                     if (ruleConfig.ruleFunction) {
-                                        setSavedRuleFunction(ruleConfig.ruleFunction);
                                         if (ruleConfig.ruleFunction.code) {
                                             setGeneratedJsCode(ruleConfig.ruleFunction.code);
                                             console.log("✅ Generated JavaScript code loaded from localStorage");
@@ -507,8 +497,6 @@ export default function RuleCreatePage() {
                     console.error('Failed to load rule:', error);
                     message.error('Failed to load rule');
                     navigate('/rules');
-                } finally {
-                    setLoading(false);
                 }
             };
 
@@ -976,7 +964,7 @@ export default function RuleCreatePage() {
             return steps.map(step => {
                 if (step.id === parentStepId && step.type === 'conditional' && step.config?.next) {
                     // Found the parent conditional - remove the step from the specified branch
-                    const updatedBranch = step.config.next[branch]?.filter(s => s.id !== stepIdToDelete) || [];
+                    const updatedBranch = step.config.next[branch]?.filter((s: ConfigurationStep) => s.id !== stepIdToDelete) || [];
                     return {
                         ...step,
                         config: {
@@ -1022,10 +1010,6 @@ export default function RuleCreatePage() {
 
     const handleZoomOut = () => {
         setZoomLevel(prev => Math.max(prev - 10, 50)); // Min 50%
-    };
-
-    const handleResetZoom = () => {
-        setZoomLevel(100);
     };
 
     // Shared helper function to recursively process all steps including nested conditionals
@@ -1376,21 +1360,10 @@ export default function RuleCreatePage() {
                 };
             });
 
-            console.log("📦 Steps payload to be sent:", JSON.stringify(stepsToCreate, null, 2));
-            console.log("📊 Number of steps:", stepsToCreate.length);
-
             await ruleFunctionStepsApi.bulkCreate(stepsToCreate);
-            console.log(`✅ Saved ${stepsToCreate.length} steps successfully!`);
-
-            console.log("=".repeat(80));
-            console.log("✅ Configuration Saved to API Successfully!");
-            console.log("=".repeat(80));
-            console.log("📍 Also stored in localStorage as backup");
-            console.log("=".repeat(80));
 
             // Reset unsaved changes flag after successful save
             setHasUnsavedChanges(false);
-            setSavedRuleFunction(ruleFunction);
 
             // Show success confirmation modal
             Modal.confirm({
@@ -1582,72 +1555,6 @@ export default function RuleCreatePage() {
             });
         } finally {
             setIsTestRunning(false);
-        }
-    };
-
-    const handleViewJson = () => {
-        // Generate current JSON from current state (not from saved)
-        if (rule && configurationSteps.length > 0) {
-            const ruleFunction = {
-                id: Date.now(),
-                code: "",
-                returnType: "string",
-                ruleId: rule.id,
-                inputParams: inputParameters.map((param, index) => ({
-                    id: parseInt(param.id),
-                    sequence: index + 1,
-                    name: param.fieldName,
-                    dataType: param.dataType?.toLowerCase() || "string",
-                    paramType: param.type === "VD Field" ? "inputField" :
-                        param.type === "Fixed Field" ? "fixedField" : "default",
-                    mandatory: "true",
-                    default: "",
-                    description: ""
-                })),
-                steps: configurationSteps.map((step, index) => {
-                    const stepId = step.id;
-                    const nextStep = index < configurationSteps.length - 1 ? configurationSteps[index + 1].id : null;
-
-                    if (step.type === 'subfunction') {
-                        const subfunc = subfunctions.find(f => f.id === step.subfunctionId);
-                        const config = step.config || {};
-                        return {
-                            id: stepId,
-                            type: "subFunction",
-                            outputVariableName: config.outputVariable || `step_${index + 1}_output_variable`,
-                            returnType: subfunc?.returnType?.toLowerCase() || "string",
-                            subFunction: { id: step.subfunctionId, inputParams: [] },
-                            next: nextStep
-                        };
-                    } else if (step.type === 'output') {
-                        const outputConfig = step.config || {};
-                        return {
-                            id: stepId,
-                            type: "output",
-                            outputVariableName: null,
-                            returnType: outputConfig.dataType?.toLowerCase() || "any",
-                            data: {
-                                type: outputConfig.type || "",
-                                dataType: outputConfig.dataType?.toLowerCase() || "",
-                                value: ""
-                            },
-                            next: null
-                        };
-                    }
-                    return null;
-                }).filter(Boolean)
-            };
-            setCurrentJson(ruleFunction);
-            setIsJsonModalOpen(true);
-        } else {
-            alert("No configuration steps found. Please add some steps first.");
-        }
-    };
-
-    const handleCopyJson = () => {
-        if (currentJson) {
-            navigator.clipboard.writeText(JSON.stringify(currentJson, null, 2));
-            alert("JSON copied to clipboard!");
         }
     };
 
@@ -2067,10 +1974,6 @@ export default function RuleCreatePage() {
                                             {!isViewMode && <div className="h-8 w-px bg-gray-300 mx-auto -mt-8"></div>}
 
                                             {configurationSteps.map((step, index) => {
-                                                // Check if there's a conditional card in the steps
-                                                const hasConditional = configurationSteps.some(s => s.type === 'conditional');
-                                                // Add padding if this is not a conditional card and there is a conditional somewhere
-                                                const shouldAddPadding = hasConditional && step.type !== 'conditional';
                                                 // Check if this is the last step and it's a leaf node
                                                 const isLastStep = index === configurationSteps.length - 1;
                                                 const canDelete = isLastStep && isLeafNode(step);

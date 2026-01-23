@@ -100,7 +100,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
             const [paramErrors, setParamErrors] = useState<Record<number, { type?: string; dataType?: string; value?: string }>>({});
 
             // Validate parameter based on subfunction configuration
-            const validateParameter = (paramIndex: number, paramConfig: any, paramDef: any) => {
+            const validateParameter = (paramConfig: any, paramDef: any) => {
                 const errors: { type?: string; dataType?: string; value?: string } = {};
 
                 // Check if mandatory parameter has a type selected
@@ -144,7 +144,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                 const newErrors: Record<number, { type?: string; dataType?: string; value?: string }> = {};
                 subfunc.inputParams?.forEach((param, idx) => {
                     const paramConfig = config.params?.[idx] || {};
-                    const errors = validateParameter(idx, paramConfig, param);
+                    const errors = validateParameter(paramConfig, param);
                     if (Object.keys(errors).length > 0) {
                         newErrors[idx] = errors;
                     }
@@ -282,10 +282,6 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                                     )}
                                     {paramConfig.type === 'Static Value' && (
                                         (() => {
-                                            const expectedDataType = param.dataType;
-                                            const selectedDataType = paramConfig.dataType;
-                                            const hasDataTypeMismatch = selectedDataType && !isDataTypeCompatible(expectedDataType, selectedDataType);
-
                                             return (
                                                 <div className="mt-2 space-y-2">
                                                     <Select

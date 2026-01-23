@@ -331,7 +331,7 @@ export default function ConditionalCard({
 
                 {/* Conditions */}
                 <div className="space-y-3 mb-6 overflow-visible">
-                    {conditions.map((condition, index) => (
+                    {conditions.map((condition: Condition, index: number) => (
                         <div key={condition.id} className="space-y-3">
                             {/* AND/OR Badge (for all except first condition) */}
                             {index > 0 && condition.andOr && (
