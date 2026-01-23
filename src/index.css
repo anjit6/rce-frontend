@@ -2,11 +2,592 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #f9fafb;
+  min-height: 100vh;
+}
+
+html {
+  background-color: #f9fafb;
+}
+
+/* =============================================
+   Ant Design Customizations
+   ============================================= */
+
+/* Sidebar Menu Styles */
+.sidebar-menu .ant-menu-item {
+  border-radius: 12px !important;
+  margin-bottom: 4px !important;
+  height: 44px !important;
+  line-height: 44px !important;
+}
+
+.sidebar-menu .ant-menu-item-selected {
+  background-color: #fef2f2 !important;
+  color: #dc2626 !important;
+}
+
+.sidebar-menu .ant-menu-item-selected .anticon {
+  color: #dc2626 !important;
+}
+
+.sidebar-menu .ant-menu-item:hover:not(.ant-menu-item-selected) {
+  background-color: #f9fafb !important;
+}
+
+/* Table Styles */
+.rules-table .ant-table-thead>tr>th {
+  background-color: #f9fafb !important;
+  border-bottom: 1px solid #f3f4f6 !important;
+  font-weight: 500 !important;
+  color: #6b7280 !important;
+  font-size: 14px !important;
+}
+
+.rules-table .ant-table-tbody>tr>td {
+  border-bottom: 1px solid #f9fafb !important;
+  padding: 16px !important;
+}
+
+.rules-table .ant-table-tbody>tr:hover>td {
+  background-color: rgba(249, 250, 251, 0.5) !important;
+}
+
+/* Modal Styles */
+.create-rule-modal .ant-modal-content {
+  border-radius: 16px !important;
+  overflow: hidden;
+}
+
+.create-rule-modal .ant-modal-header {
+  padding: 20px 24px !important;
+  border-bottom: 1px solid #f3f4f6 !important;
+}
+
+.create-rule-modal .ant-modal-body {
+  padding: 0 24px 24px !important;
+}
+
+.create-rule-modal .ant-modal-close {
+  top: 20px !important;
+  right: 20px !important;
+}
+
+/* Ensure textarea in create rule modal displays with proper height */
+.create-rule-modal .ant-input-textarea textarea {
+  min-height: 144px !important;
+}
+
+/* Form Styles */
+.ant-form-item-label>label {
+  font-weight: 500 !important;
+}
+
+/* =============================================
+   UNIFORM INPUT FIELD SIZING
+   All input fields maintain consistent dimensions
+   ============================================= */
+
+/* Standard Input Fields */
+.ant-input:not(textarea),
+.ant-input-affix-wrapper {
+  border-radius: 6px !important;
+  height: 40px !important;
+  padding: 8px 12px !important;
+}
+
+/* Input prefix/suffix icon alignment */
+.ant-input-affix-wrapper .ant-input-prefix,
+.ant-input-affix-wrapper .ant-input-suffix {
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Input field text alignment inside affix wrapper */
+.ant-input-affix-wrapper .ant-input {
+  height: auto !important;
+  padding: 0 !important;
+}
+
+/* Override Ant Design large select height */
+:where(.css-dev-only-do-not-override-mncuj7).ant-select-single.ant-select-lg {
+  height: 42px !important;
+}
+
+/* Large Input Fields */
+.ant-input-lg,
+.ant-input-affix-wrapper-lg {
+  border-radius: 6px !important;
+  height: 44px !important;
+  padding: 10px 16px !important;
+}
+
+/* Password Input */
+.ant-input-password {
+  height: 40px !important;
+}
+
+.ant-input-password.ant-input-lg {
+  height: 44px !important;
+}
+
+/* TextArea - maintains auto height but consistent styling */
+.ant-input-textarea textarea {
+  border-radius: 6px !important;
+  padding: 8px 12px !important;
+  line-height: 1.5 !important;
+}
+
+/* Ensure textarea respects rows attribute */
+.ant-input-textarea.ant-input-textarea-show-count::after {
+  margin-top: 4px !important;
+}
+
+/* Select Dropdowns - Uniform Sizing */
+.ant-select-single:not(.ant-select-customize-input) .ant-select-selector {
+  height: 40px !important;
+  padding: 4px 12px !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  border: 1px solid hsl(214.3 31.8% 91.4%) !important;
+  transition: all 0.2s ease !important;
+}
+
+.ant-select-single.ant-select-lg:not(.ant-select-customize-input) .ant-select-selector {
+  height: 44px !important;
+  padding: 6px 16px !important;
+  border-radius: 8px !important;
+  border: 1px solid hsl(214.3 31.8% 91.4%) !important;
+}
+
+.ant-select-focused .ant-select-selector {
+  border-color: hsl(0 72.2% 50.6%) !important;
+  box-shadow: 0 0 0 1px hsl(0 72.2% 50.6%) !important;
+}
+
+/* Select dropdown arrow - vertically centered */
+.ant-select-arrow {
+  display: flex !important;
+  align-items: center !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  height: auto !important;
+  margin-top: 0 !important;
+}
+
+/* Select text content alignment */
+.ant-select-single .ant-select-selection-item {
+  line-height: normal !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.ant-select-single.ant-select-lg .ant-select-selection-item {
+  line-height: normal !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Ensure placeholder text is vertically centered */
+.ant-select-single .ant-select-selection-placeholder {
+  line-height: normal !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* =============================================
+   UNIFORM DROPDOWN MENU SIZING
+   Consistent dropdown item heights and spacing
+   ============================================= */
+
+/* Dropdown Menu Items */
+.ant-select-dropdown .ant-select-item {
+  min-height: 40px !important;
+  padding: 8px 12px !important;
+  display: flex !important;
+  align-items: center !important;
+  line-height: 24px !important;
+}
+
+/* Dropdown Menu Container */
+.ant-select-dropdown {
+  border-radius: 8px !important;
+  padding: 4px !important;
+  border: 1px solid hsl(214.3 31.8% 91.4%) !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+}
+
+/* Dropdown option text */
+.ant-select-item-option-content {
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Selected item styling */
+.ant-select-item-option-selected {
+  background-color: #fef2f2 !important;
+  font-weight: 500 !important;
+}
+
+/* Hover state */
+.ant-select-item-option-active {
+  background-color: #f9fafb !important;
+}
+
+/* Button Styles - shadcn/ui inspired */
+.ant-btn {
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+}
+
+.ant-btn-lg {
+  height: 44px !important;
+  padding: 0 24px !important;
+  font-weight: 500 !important;
+}
+
+/* Remove default Antd hover styles and use custom red hover */
+.ant-btn-primary:hover:not(:disabled),
+.ant-btn-primary:focus:not(:disabled) {
+  background-color: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+
+.ant-btn-default:hover:not(:disabled),
+.ant-btn-default:focus:not(:disabled) {
+  color: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+
+.ant-btn-text:hover:not(:disabled),
+.ant-btn-text:focus:not(:disabled) {
+  color: #ef4444 !important;
+  background-color: transparent !important;
+}
+
+/* Function Library Collapse - prevent horizontal scroll */
+.function-library-collapse {
+  overflow-x: hidden !important;
+}
+
+.function-library-collapse .ant-collapse-content-box {
+  padding-left: 24px !important;
+  padding-right: 0 !important;
+  overflow-x: hidden !important;
+}
+
+.function-library-collapse .ant-collapse-header {
+  padding-left: 24px !important;
+}
+
+/* Function Library Modal - fix close button and scrollbar overlap */
+.function-library-modal .ant-modal-close {
+  top: 24px !important;
+  right: 24px !important;
+  z-index: 10 !important;
+  width: 32px !important;
+  height: 32px !important;
+}
+
+.function-library-modal .ant-modal-body {
+  padding: 24px !important;
+  padding-left: 0 !important;
+  padding-right: 16px !important;
+}
+
+/* Custom scrollbar for function library modal - lighter color */
+.function-library-modal .ant-modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.function-library-modal .ant-modal-body::-webkit-scrollbar-track {
+  background: #f9fafb;
+}
+
+.function-library-modal .ant-modal-body::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 3px;
+}
+
+.function-library-modal .ant-modal-body::-webkit-scrollbar-thumb:hover {
+  background: #d1d5db;
+}
+
+/* Function buttons in sidebar */
+.function-library-collapse .ant-btn:hover:not(:disabled),
+.function-library-collapse .ant-btn:focus:not(:disabled) {
+  color: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+
+/* Icon buttons with circular background */
+.ant-btn-text.rounded-full {
+  transition: all 0.2s ease;
+}
+
+.ant-btn-text.rounded-full:disabled,
+.ant-btn-text.rounded-full:disabled:hover {
+  opacity: 0.5;
+  background-color: transparent !important;
+  color: #d1d5db !important;
+}
+
+/* Delete parameter button - red background on hover when enabled */
+.delete-param-btn:hover:not(:disabled) {
+  background-color: #fee2e2 !important;
+  color: #dc2626 !important;
+}
+
+.delete-param-btn:disabled,
+.delete-param-btn:disabled:hover {
+  background-color: transparent !important;
+  color: #d1d5db !important;
+  cursor: not-allowed;
+}
+
+/* Configuration Modal - consistent card styling */
+.ant-modal-content {
+  border-radius: 12px !important;
+  border: 1px solid hsl(214.3 31.8% 91.4%) !important;
+}
+
+/* Dropdown Styles - shadcn/ui popover */
+.ant-dropdown-menu {
+  border-radius: 8px !important;
+  padding: 4px !important;
+  border: 1px solid hsl(214.3 31.8% 91.4%) !important;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1) !important;
+}
+
+.ant-dropdown-menu-item {
+  border-radius: 6px !important;
+  padding: 8px 12px !important;
+  transition: all 0.15s ease !important;
+}
+
+.ant-dropdown-menu-item:hover {
+  background-color: hsl(210 40% 96.1%) !important;
+}
+
+/* Pagination Styles */
+.custom-pagination .ant-pagination-item {
+  border-radius: 8px !important;
+  border: 1px solid #e5e7eb !important;
+  font-weight: 500 !important;
+}
+
+.custom-pagination .ant-pagination-item-active {
+  background-color: #1e1b4b !important;
+  border-color: #1e1b4b !important;
+}
+
+.custom-pagination .ant-pagination-item-active a {
+  color: white !important;
+}
+
+.custom-pagination .ant-pagination-prev,
+.custom-pagination .ant-pagination-next {
+  border-radius: 8px !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+/* Tag Styles */
+.ant-tag {
+  border-radius: 9999px !important;
+  padding: 2px 12px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  border: none !important;
+}
+
+/* Checkbox Styles */
+.ant-checkbox-wrapper {
+  font-size: 14px !important;
+}
+
+.ant-checkbox-checked .ant-checkbox-inner {
+  background-color: #dc2626 !important;
+  border-color: #dc2626 !important;
+}
+
+/* =============================================
+   Custom Animations
+   ============================================= */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-from-top {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes zoom-in-95 {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutToRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Utility Animation Classes */
+.animate-in {
+  animation-duration: 200ms;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+
+.fade-in {
+  animation-name: fade-in;
+}
+
+.slide-in-from-top-2 {
+  animation-name: slide-in-from-top;
+}
+
+.zoom-in-95 {
+  animation-name: zoom-in-95;
+}
+
+.duration-200 {
+  animation-duration: 200ms;
+}
+
+/* =============================================
+   Custom Scrollbar
+   ============================================= */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: #475569;
+}
+
+/* Firefox scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+/* =============================================
+   Native Select Dropdown Options Styling
+   ============================================= */
+
+/* Style for native select dropdown options */
+select option {
+  padding: 8px 12px !important;
+  background-color: white !important;
+  color: #111827 !important;
+}
+
+select option:hover {
+  background-color: #fee2e2 !important;
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+}
+
+select option:focus {
+  background-color: #fee2e2 !important;
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+}
+
+select option:checked {
+  background-color: #fecaca !important;
+  background: #fecaca !important;
+  color: #dc2626 !important;
+  font-weight: 500 !important;
+}
+
+/* Override browser default blue highlight */
+select option:checked,
+select option:active,
+select option[selected] {
+  background: linear-gradient(#fecaca, #fecaca) !important;
+  background-color: #fecaca !important;
+  color: #dc2626 !important;
+}
+
+/* Firefox specific styling */
+@-moz-document url-prefix() {
+  select option:checked {
+    background: #fecaca !important;
+    color: #dc2626 !important;
+  }
+
+  select option:hover {
+    background: #fee2e2 !important;
+    color: #dc2626 !important;
+  }
 }

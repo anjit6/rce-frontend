@@ -6,6 +6,7 @@ export type CategoryId = 'STR' | 'NUM' | 'DATE' | 'UTIL';
 
 export interface InputParam {
   name: string;
+  label: string;
   dataType: DataType;
   mandatory: boolean;
   sequence: number;

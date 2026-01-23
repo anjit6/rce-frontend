@@ -1,4 +1,4 @@
-import { SUBFUNCTIONS, CATEGORIES } from '@/constants/subfunctions';
+import { SUBFUNCTIONS, CATEGORIES } from '../constants/subfunctions';
 import { Subfunction, GroupedSubfunctions, Category, CategoryId } from '@/types/subfunction';
 
 /**

@@ -1,8 +1,16 @@
+import Layout from '../../components/layout/Layout';
+
 export default function MappingsPage() {
   return (
-    <div>
-      <h1>Rule Mappings</h1>
-      <p>To be implemented</p>
-    </div>
+    <Layout>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <h1 className="text-3xl font-semibold text-gray-900 mb-4">Mapping</h1>
+          <p className="text-lg text-gray-600">
+            This feature is under development and will be available in the next release
+          </p>
+        </div>
+      </div>
+    </Layout>
   )
 }

@@ -1,8 +1,15 @@
+import { useEffect } from 'react';
+import Layout from '../../components/layout/Layout';
+import RulesList from '../../components/rules/RulesList';
+
 export default function RulesPage() {
+  useEffect(() => {
+    document.title = 'All Rules - RCE';
+  }, []);
+
   return (
-    <div>
-      <h1>Rules Management</h1>
-      <p>To be implemented</p>
-    </div>
-  )
+    <Layout>
+      <RulesList />
+    </Layout>
+  );
 }
