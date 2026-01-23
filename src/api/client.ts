@@ -1,7 +1,9 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 // API client configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// In production (when VITE_API_URL is empty), use relative path so nginx can proxy
+// In development, use localhost:8080
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:8080');
 
 // Create axios instance with default config
 const apiClient: AxiosInstance = axios.create({
