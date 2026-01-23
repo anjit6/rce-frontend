@@ -3,7 +3,6 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button, Collapse, Modal, Tooltip, Select, message } from 'antd';
 import { PlusOutlined, CloseOutlined, SearchOutlined, ExclamationCircleOutlined, CloseCircleFilled, CheckOutlined, CopyOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
 import Layout from '../../components/layout/Layout';
-import { useSidebar } from '../../context/SidebarContext';
 import { rulesService } from '../../services/rules.service';
 import { subfunctionsService, Subfunction } from '../../services/subfunctions.service';
 import { ruleFunctionsApi, ruleFunctionStepsApi, CreateRuleFunctionStepDto } from '../../api';
@@ -125,7 +124,6 @@ export default function RuleCreatePage() {
     const { ruleId } = useParams<{ ruleId: string }>();
     const navigate = useNavigate();
     const location = useLocation();
-    const { isCollapsed: isSidebarCollapsed } = useSidebar();
     const [rule, setRule] = useState<any>(null);
     const [isViewMode, setIsViewMode] = useState(false); // Default to edit mode
     const [configurationStarted, setConfigurationStarted] = useState(false);
