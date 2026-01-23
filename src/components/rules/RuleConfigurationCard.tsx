@@ -203,7 +203,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
             const stepNumberText = formatStepId(step.stepId);
 
             // Check if output variable is duplicate
-            const currentOutputVar = (config.outputVariable || `step_${stepIndex + 1}_output_variable`).trim().toLowerCase();
+            const currentOutputVar = (config.outputVariable ?? `step_${stepIndex + 1}_output_variable`).trim().toLowerCase();
             const allOtherOutputVars = collectAllOutputVariables(stepsForValidation, step.id);
             const inputParamFieldNames = inputParameters.map(p => p.fieldName.trim().toLowerCase());
             const isOutputVarDuplicate = currentOutputVar && (
@@ -333,7 +333,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                             <Label className="text-sm font-medium text-gray-900">Output Variable</Label>
                             <div className="flex flex-col items-end">
                                 <Input
-                                    value={config.outputVariable || `step_${stepIndex + 1}_output_variable`}
+                                    value={config.outputVariable ?? `step_${stepIndex + 1}_output_variable`}
                                     onChange={(e) => handleOutputVariableChange(e.target.value)}
                                     className="w-64"
                                     inputSize="lg"

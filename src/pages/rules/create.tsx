@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button, Collapse, Modal, Tooltip, Select, message } from 'antd';
 import { PlusOutlined, CloseOutlined, SearchOutlined, ExclamationCircleOutlined, CloseCircleFilled, CheckOutlined, CopyOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
@@ -552,7 +552,7 @@ export default function RuleCreatePage() {
             id: Date.now().toString(),
             name: `Input Parameter ${inputParameters.length + 1}`,
             fieldName: '',
-            type: 'String',
+            type: 'VD Field',
             dataType: 'String'
         };
         const updatedParams = renumberParameters([...inputParameters, newParam]);
@@ -903,8 +903,23 @@ export default function RuleCreatePage() {
     };
 
     const handleAddStep = (position: number) => {
-        // Check if there are any validation errors in the current steps
-        const hasValidationErrors = Object.values(stepValidationErrors).some(hasError => hasError);
+        // Get all current step IDs (including nested steps in conditionals)
+        const getAllStepIds = (steps: ConfigurationStep[]): string[] => {
+            const ids: string[] = [];
+            steps.forEach(step => {
+                ids.push(step.id);
+                if (step.type === 'conditional' && step.config?.next) {
+                    ids.push(...getAllStepIds(step.config.next.true || []));
+                    ids.push(...getAllStepIds(step.config.next.false || []));
+                }
+            });
+            return ids;
+        };
+
+        const currentStepIds = getAllStepIds(configurationSteps);
+
+        // Only check validation errors for steps that currently exist
+        const hasValidationErrors = currentStepIds.some(stepId => stepValidationErrors[stepId] === true);
 
         if (hasValidationErrors) {
             // Show validation errors and prevent modal from opening
@@ -917,12 +932,12 @@ export default function RuleCreatePage() {
         setIsConfigModalOpen(true);
     };
 
-    const handleValidationStatusChange = (stepId: string, hasErrors: boolean) => {
+    const handleValidationStatusChange = useCallback((stepId: string, hasErrors: boolean) => {
         setStepValidationErrors(prev => ({
             ...prev,
             [stepId]: hasErrors
         }));
-    };
+    }, []);
 
     const handleAddBranchStep = (stepId: string, branch: 'true' | 'false') => {
         setActiveBranchStep({ stepId, branch });
@@ -1001,6 +1016,20 @@ export default function RuleCreatePage() {
         const updatedSteps = configurationSteps.filter(step => step.id !== stepIdToDelete);
         updateConfigurationSteps(updatedSteps);
         setHasUnsavedChanges(true);
+
+        // Clean up validation errors for the deleted step so Add button works
+        setStepValidationErrors(prev => {
+            const newErrors = { ...prev };
+            delete newErrors[stepIdToDelete];
+            return newErrors;
+        });
+
+        // Reset states if all steps are deleted
+        if (updatedSteps.length === 0) {
+            setConfigurationStarted(false);
+            setStepValidationErrors({});
+            setShowStepValidation(false);
+        }
     };
 
     // Zoom control functions
@@ -1009,7 +1038,7 @@ export default function RuleCreatePage() {
     };
 
     const handleZoomOut = () => {
-        setZoomLevel(prev => Math.max(prev - 10, 50)); // Min 50%
+        setZoomLevel(prev => Math.max(prev - 10, 25)); // Min 25%
     };
 
     // Shared helper function to recursively process all steps including nested conditionals
@@ -1624,11 +1653,10 @@ export default function RuleCreatePage() {
 
     return (
         <Layout>
-            <div className="min-h-screen w-full bg-gray-50 pb-24">
-                {/* Main Content Area */}
-                <div className="px-8 py-6 w-full bg-gray-50">
-                    {/* Rule Title and Action Buttons */}
-                    <div className="mb-6 max-w-full overflow-hidden flex justify-between items-start bg-gray-50">
+            <div className="h-screen w-full bg-gray-50 overflow-hidden flex flex-col">
+                {/* Fixed Header Section - Rule Title and Action Buttons */}
+                <div className="flex-shrink-0 z-20 bg-gray-50 px-8 py-6">
+                    <div className="max-w-full overflow-hidden flex justify-between items-start">
                         <div className="flex-1 min-w-0">
                             <Tooltip title={rule.name}>
                                 <h1 className="text-xl font-bold text-gray-900 truncate cursor-pointer">{rule.name}</h1>
@@ -1694,10 +1722,13 @@ export default function RuleCreatePage() {
                             </div>
                         )}
                     </div>
+                </div>
 
+                {/* Scrollable Content Area */}
+                <div className="flex-1 w-full bg-gray-50 overflow-auto">
                     {/* Empty State - Show when configuration is hidden OR in view mode with no steps */}
                     {(!showConfiguration || (isViewMode && configurationSteps.length === 0)) && (
-                        <div className="flex flex-col items-center justify-center py-20">
+                        <div className="flex flex-col items-center justify-center py-20 px-8">
                             <p className="text-lg text-gray-900 mb-6">Click configure to start building your rule</p>
                             <Button
                                 type="primary"
@@ -1738,7 +1769,7 @@ export default function RuleCreatePage() {
                                         <Button
                                             icon={<ZoomOutOutlined />}
                                             onClick={handleZoomOut}
-                                            disabled={zoomLevel <= 50}
+                                            disabled={zoomLevel <= 25}
                                             className="flex items-center justify-center border-none bg-transparent hover:bg-gray-100"
                                             size="middle"
                                         />
@@ -1746,7 +1777,7 @@ export default function RuleCreatePage() {
                                 </div>
                             )}
 
-                            <div ref={scrollContainerRef} className="bg-gray-50">
+                            <div ref={scrollContainerRef} className="bg-gray-50 px-8 pb-8">
                                 <div
                                     className="min-w-fit flex flex-col items-center transition-transform duration-200 origin-top bg-gray-50"
                                     style={{ transform: `scale(${zoomLevel / 100})` }}
@@ -1960,7 +1991,7 @@ export default function RuleCreatePage() {
                                                 size="large"
                                                 onClick={handleStartConfiguration}
                                                 disabled={configurationStarted || configurationSteps.length > 0}
-                                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500 rounded-lg px-8 disabled:bg-gray-300 disabled:text-gray-500 disabled:border-gray-300"
+                                                className="border-red-400 text-red-500 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 hover:shadow-lg focus:border-red-400 focus:text-red-500 rounded-lg px-8 disabled:bg-gray-300 disabled:text-gray-500 disabled:border-gray-300 transition-all"
                                             >
                                                 Start
                                             </Button>
@@ -2017,7 +2048,7 @@ export default function RuleCreatePage() {
                                                             {!isViewMode && index === configurationSteps.length - 1 && step.type !== 'output' && step.type !== 'conditional' && (
                                                                 <div className="flex justify-center mb-8 bg-gray-50">
                                                                     <Button
-                                                                        className="px-8 h-10 rounded-md hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                                                        className="border-red-400 text-red-500 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 hover:shadow-lg focus:border-red-400 focus:text-red-500 px-8 h-10 rounded-md transition-all"
                                                                         onClick={() => handleAddStep(index)}
                                                                     >
                                                                         Add
@@ -2042,9 +2073,9 @@ export default function RuleCreatePage() {
                     )}
                 </div>
 
-                {/* Fixed Action Buttons Card */}
+                {/* Action Buttons Card - Fixed at bottom */}
                 {!isViewMode && showConfiguration && (
-                    <div className={`fixed bottom-0 right-0 z-50 bg-white shadow-lg py-4 flex justify-center gap-3 transition-all duration-300 ${isSidebarCollapsed ? 'left-20' : 'left-64'}`}>
+                    <div className="flex-shrink-0 z-50 bg-white py-4 flex justify-center gap-3">
                         <Button
                             type="primary"
                             size="large"

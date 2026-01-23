@@ -482,7 +482,7 @@ export default function ConditionalCard({
                                 <Button
                                     icon={<PlusOutlined />}
                                     size="large"
-                                    className="px-6"
+                                    className="border-red-400 text-red-500 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 hover:shadow-lg focus:border-red-400 focus:text-red-500 px-6 transition-all"
                                 >
                                     Add Condition
                                 </Button>
@@ -630,7 +630,7 @@ export default function ConditionalCard({
 
                                     {/* Add Step Button with connector line */}
                                     {!isViewMode && (trueSteps.length === 0 || (trueSteps[trueSteps.length - 1].type !== 'output' && trueSteps[trueSteps.length - 1].type !== 'conditional')) && (
-                                        <div className="text-center w-full flex flex-col items-center">
+                                        <div className="text-center w-full flex flex-col items-center pb-8">
                                             {/* Connector line to button */}
                                             {trueSteps.length > 0 ? (
                                                 <>
@@ -647,7 +647,7 @@ export default function ConditionalCard({
                                                         onAddBranchStep('true');
                                                     }
                                                 }}
-                                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500 px-8 shadow-md"
+                                                className="border-red-400 text-red-500 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 hover:shadow-lg focus:border-red-400 focus:text-red-500 px-8 shadow-md transition-all"
                                                 size="large"
                                             >
                                                 Add Step
@@ -744,7 +744,7 @@ export default function ConditionalCard({
 
                                     {/* Add Step Button for FALSE branch with connector line */}
                                     {!isViewMode && (falseSteps.length === 0 || (falseSteps[falseSteps.length - 1].type !== 'output' && falseSteps[falseSteps.length - 1].type !== 'conditional')) && (
-                                        <div className="text-center w-full flex flex-col items-center">
+                                        <div className="text-center w-full flex flex-col items-center pb-8">
                                             {/* Connector line to button */}
                                             {falseSteps.length > 0 ? (
                                                 <>
@@ -756,7 +756,7 @@ export default function ConditionalCard({
                                             )}
                                             <Button
                                                 onClick={() => onAddBranchStep && onAddBranchStep('false')}
-                                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500 px-8 shadow-md"
+                                                className="border-red-400 text-red-500 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 hover:shadow-lg focus:border-red-400 focus:text-red-500 px-8 shadow-md transition-all"
                                                 size="large"
                                             >
                                                 Add Step
