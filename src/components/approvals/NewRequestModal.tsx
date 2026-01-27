@@ -248,11 +248,10 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, loading = f
         </div>
 
         {/* Footer - Fixed at bottom */}
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-200 bg-white">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-white">
           <Button
             onClick={handleClose}
-            disabled={loading}
-            className="flex-1 h-11 rounded-lg border-gray-300 hover:border-gray-400 font-medium"
+            className="h-11 px-8 rounded-lg border-gray-300 hover:border-gray-400 font-medium"
           >
             Cancel
           </Button>
@@ -260,8 +259,7 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, loading = f
             type="primary"
             onClick={handleSubmit}
             loading={loading}
-            disabled={!selectedRuleId || loading}
-            className="flex-1 h-11 rounded-lg bg-red-600 hover:bg-red-500 border-none font-medium"
+            className="h-11 px-8 rounded-lg bg-red-600 hover:bg-red-500 border-none font-medium"
           >
             Submit
           </Button>

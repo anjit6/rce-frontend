@@ -2,14 +2,16 @@ import { useState, useEffect } from 'react';
 import { Button, message, Spin, Modal } from 'antd';
 import { LoadingOutlined, CloseOutlined } from '@ant-design/icons';
 import { rulesApi } from '../../api/rules.api';
+import { approvalsApi } from '../../api/approvals.api';
 import { Input } from '../ui/input';
 import { compileRule, type Rule as CompilerRule } from '../../utils/ruleCompiler';
 
 interface TestRulePanelProps {
   isOpen: boolean;
   onClose: () => void;
-  ruleId: number;
+  ruleId?: number;
   ruleName: string;
+  approvalId?: string;
 }
 
 interface InputParam {
@@ -28,7 +30,7 @@ interface TestResult {
   };
 }
 
-export default function TestRulePanel({ isOpen, onClose, ruleId, ruleName }: TestRulePanelProps) {
+export default function TestRulePanel({ isOpen, onClose, ruleId, ruleName, approvalId }: TestRulePanelProps) {
   const [inputParams, setInputParams] = useState<InputParam[]>([]);
   const [paramValues, setParamValues] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
@@ -48,45 +50,195 @@ export default function TestRulePanel({ isOpen, onClose, ruleId, ruleName }: Tes
       setTestResult(null);
       setGeneratedCode('');
     }
-  }, [isOpen, ruleId]);
+  }, [isOpen, ruleId, approvalId]);
 
   const loadRuleAndGenerateCode = async () => {
     try {
       setLoading(true);
-      const response = await rulesApi.getComplete(ruleId);
 
-      // Extract input parameters from rule_function
-      const params: InputParam[] = response.rule_function.input_params || [];
-      setInputParams(params);
+      if (approvalId) {
+        // Load from approval API and compile from steps (same as Configuration flow)
+        const approval = await approvalsApi.getById(approvalId);
 
-      // Initialize param values using fieldName as key (matching create.tsx behavior)
-      const initialValues: Record<string, any> = {};
-      params.forEach(param => {
-        const key = param.fieldName || param.name;
-        initialValues[key] = '';
-      });
-      setParamValues(initialValues);
+        // Parse rule_function_input_params from approval response
+        // Note: Backend returns params with 'name' field, not 'fieldName'
+        const params: InputParam[] = (approval.rule_function_input_params || []).map((param: any) => ({
+          name: param.name,
+          fieldName: param.fieldName || param.name, // Use name as fallback for display
+          dataType: param.data_type || param.dataType,
+          mandatory: param.mandatory
+        }));
+        setInputParams(params);
 
-      // Generate JavaScript code using the compiler
-      try {
-        const ruleForCompiler: CompilerRule = {
-          id: response.rule.id,
-          name: response.rule.name,
-          inputParams: response.rule_function.input_params || [],
-          steps: response.steps || []
-        };
+        console.log('📋 Loaded input params from approval:', params);
 
-        const compiledCode = compileRule(ruleForCompiler);
-        setGeneratedCode(compiledCode);
-        console.log('✅ Generated code for testing:', compiledCode);
-      } catch (compileError) {
-        console.error('Failed to compile rule:', compileError);
-        Modal.error({
-          title: 'Compilation Failed',
-          content: 'Failed to generate JavaScript code. Please check the rule configuration.',
-          okText: 'OK',
-          centered: true
+        // Initialize param values using name as key
+        const initialValues: Record<string, any> = {};
+        params.forEach(param => {
+          initialValues[param.name] = '';
         });
+        setParamValues(initialValues);
+
+        // Compile from steps instead of using pre-compiled code (ensures consistency with Configuration flow)
+        if (approval.rule_steps && approval.rule_steps.length > 0) {
+          try {
+            // Validate parameters have valid names
+            const invalidParams = params.filter(p => !p.name || p.name.trim() === '');
+            if (invalidParams.length > 0) {
+              throw new Error('Some parameters are missing valid names. Please check the rule configuration.');
+            }
+
+            // Transform parameters to match compiler expectations
+            const compilerInputParams = params.map(param => ({
+              id: param.name,
+              name: param.name,
+              dataType: param.dataType || 'STRING',
+              mandatory: param.mandatory ? 'true' : 'false',
+              sequence: 0
+            }));
+
+            // Transform steps from database format (snake_case) to compiler format (camelCase)
+            const transformedSteps = (approval.rule_steps || []).map((step: any) => ({
+              id: step.id,
+              type: step.type,
+              outputVariableName: step.output_variable_name,
+              returnType: step.return_type,
+              next: step.next_step,
+              sequence: step.sequence,
+              // Transform subFunction data
+              subFunction: step.subfunction_id ? {
+                id: step.subfunction_id,
+                name: step.subfunction_name,
+                inputParams: (step.subfunction_params || []).map((p: any) => ({
+                  subFuncParamId: p.subfunction_param_name,
+                  name: p.subfunction_param_name,
+                  data: {
+                    type: p.data_type,
+                    value: p.data_value,
+                    dataType: p.data_value_type
+                  }
+                }))
+              } : undefined,
+              // Transform conditions
+              conditions: (step.conditions || []).map((c: any) => ({
+                sequence: c.sequence,
+                and_or: c.and_or,
+                lhs: {
+                  type: c.lhs_type,
+                  value: c.lhs_value,
+                  dataType: c.lhs_data_type
+                },
+                operator: c.operator,
+                rhs: {
+                  type: c.rhs_type,
+                  value: c.rhs_value,
+                  dataType: c.rhs_data_type
+                }
+              })),
+              // Transform output data
+              data: step.output_data ? {
+                responseType: step.output_data.response_type || 'success',
+                type: step.output_data.data_type,
+                value: step.output_data.data_value,
+                dataType: step.output_data.data_value_type,
+                errorMessage: step.output_data.error_message,
+                errorCode: step.output_data.error_code
+              } : undefined
+            }));
+
+            const ruleForCompiler: CompilerRule = {
+              id: approval.rule_id,
+              name: approval.rule_name || `Rule ${approval.rule_id}`,
+              inputParams: compilerInputParams,
+              steps: transformedSteps
+            };
+
+            console.log('🔧 Compiler input params:', compilerInputParams);
+            console.log('🔧 Original rule steps:', approval.rule_steps);
+            console.log('🔧 Transformed steps:', transformedSteps);
+
+            const compiledCode = compileRule(ruleForCompiler);
+            setGeneratedCode(compiledCode);
+            console.log('✅ Compiled rule code from steps:', compiledCode);
+          } catch (compileError) {
+            console.error('Failed to compile rule from steps:', compileError);
+            Modal.error({
+              title: 'Compilation Failed',
+              content: `Failed to generate JavaScript code: ${(compileError as Error).message}`,
+              okText: 'OK',
+              centered: true
+            });
+          }
+        } else {
+          Modal.error({
+            title: 'No Rule Steps',
+            content: 'This approval does not have associated rule steps for compilation.',
+            okText: 'OK',
+            centered: true
+          });
+        }
+      } else if (ruleId) {
+        // Load from rules API and compile (Configuration page flow)
+        const response = await rulesApi.getComplete(ruleId);
+
+        // Extract input parameters from rule_function
+        // Normalize to ensure consistent structure
+        const params: InputParam[] = (response.rule_function.input_params || []).map((param: any) => ({
+          name: param.name,
+          fieldName: param.fieldName || param.name,
+          dataType: param.data_type || param.dataType,
+          mandatory: param.mandatory
+        }));
+        setInputParams(params);
+
+        console.log('📋 Loaded input params from rule:', params);
+
+        // Initialize param values using name as key (consistent with approval flow)
+        const initialValues: Record<string, any> = {};
+        params.forEach(param => {
+          initialValues[param.name] = '';
+        });
+        setParamValues(initialValues);
+
+        // Generate JavaScript code using the compiler
+        try {
+          // Validate parameters have valid names
+          const invalidParams = params.filter(p => !p.name || p.name.trim() === '');
+          if (invalidParams.length > 0) {
+            throw new Error('Some parameters are missing valid names. Please check the rule configuration.');
+          }
+
+          // Transform parameters to match compiler expectations
+          const compilerInputParams = params.map(param => ({
+            id: param.name,
+            name: param.name,
+            dataType: param.dataType || 'STRING',
+            mandatory: param.mandatory ? 'true' : 'false',
+            sequence: 0
+          }));
+
+          const ruleForCompiler: CompilerRule = {
+            id: response.rule.id,
+            name: response.rule.name,
+            inputParams: compilerInputParams,
+            steps: response.steps || []
+          };
+
+          console.log('🔧 Compiler input params:', compilerInputParams);
+          console.log('🔧 Rule steps:', response.steps);
+
+          const compiledCode = compileRule(ruleForCompiler);
+          setGeneratedCode(compiledCode);
+          console.log('✅ Generated code for testing:', compiledCode);
+        } catch (compileError) {
+          console.error('Failed to compile rule:', compileError);
+          Modal.error({
+            title: 'Compilation Failed',
+            content: `Failed to generate JavaScript code: ${(compileError as Error).message}`,
+            okText: 'OK',
+            centered: true
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to load rule:', error);
@@ -116,10 +268,7 @@ export default function TestRulePanel({ isOpen, onClose, ruleId, ruleName }: Tes
 
     // Validate required parameters
     const missingParams = inputParams
-      .filter(param => {
-        const paramKey = param.fieldName || param.name;
-        return param.mandatory && !paramValues[paramKey];
-      })
+      .filter(param => param.mandatory && !paramValues[param.name])
       .map(param => param.fieldName || param.name);
 
     if (missingParams.length > 0) {
@@ -142,16 +291,14 @@ export default function TestRulePanel({ isOpen, onClose, ruleId, ruleName }: Tes
       const functionCode = generatedCode + `\nreturn ${functionName};`;
       const ruleFunction = new Function(functionCode)();
 
-      // Transform paramValues from fieldName keys to name keys
-      // The UI uses fieldName as keys, but compiled code expects name as keys
-      const transformedInputs: Record<string, any> = {};
-      inputParams.forEach(param => {
-        const paramKey = param.fieldName || param.name;
-        transformedInputs[param.name] = paramValues[paramKey];
-      });
+      console.log('📥 Input Parameters:', inputParams);
+      console.log('📥 Param Values:', paramValues);
+      console.log('🔧 Function Name:', functionName);
 
-      // Execute the function with transformed inputs
-      const result = await ruleFunction(transformedInputs);
+      // Execute the function with param values (keys already match what compiled code expects)
+      const result = await ruleFunction(paramValues);
+      console.log('📤 Execution Result:', result);
+
       setTestResult(result);
 
       if (result.success) {
@@ -221,12 +368,14 @@ export default function TestRulePanel({ isOpen, onClose, ruleId, ruleName }: Tes
                 <p className="text-gray-500 text-sm mb-4">No input parameters defined for this rule.</p>
               ) : (
                 inputParams.map((param) => {
-                  const paramKey = param.fieldName || param.name;
+                  // Use name as key (what compiled code expects), fieldName for display
+                  const paramKey = param.name;
                   const displayName = param.fieldName || param.name;
                   return (
                     <div key={paramKey} className="mb-4">
                       <label className="text-sm font-medium text-gray-700 mb-2 block">
                         {displayName}
+                        {param.mandatory && <span className="text-red-500 ml-1">*</span>}
                       </label>
                       <Input
                         value={paramValues[paramKey] || ''}
@@ -264,11 +413,11 @@ export default function TestRulePanel({ isOpen, onClose, ruleId, ruleName }: Tes
                     <>
                       <h4 className="text-sm font-semibold text-gray-700 mb-2">Result:</h4>
                       <p className="text-sm text-gray-800 break-all">
-                        {testResult?.value !== undefined
+                        {testResult.value !== undefined
                           ? (typeof testResult.value === 'object'
-                            ? (testResult.value?.value !== undefined ? String(testResult.value.value) : JSON.stringify(testResult.value))
+                            ? JSON.stringify(testResult.value, null, 2)
                             : String(testResult.value))
-                          : (typeof testResult === 'object' ? JSON.stringify(testResult) : String(testResult))}
+                          : 'No result'}
                       </p>
                     </>
                   )}

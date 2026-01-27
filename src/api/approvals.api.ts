@@ -4,11 +4,23 @@ import { apiClient } from './client';
 export type RuleStatus = 'WIP' | 'TEST' | 'PENDING' | 'PROD';
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN';
 
+export interface RuleFunctionInputParam {
+  sequence: number;
+  name: string;
+  fieldName?: string;
+  data_type: string;
+  param_type?: string;
+  mandatory: boolean;
+  default_value: string | null;
+  description?: string;
+}
+
 export interface RuleApproval {
   id: string;
   rule_version_id: string | null;
   rule_id: number;
   rule_name?: string;
+  rule_slug?: string;
   rule_description?: string;
   from_stage: RuleStatus;
   to_stage: RuleStatus;
@@ -25,6 +37,10 @@ export interface RuleApproval {
   version_minor?: number;
   created_at: string;
   updated_at: string;
+  // Fields for test rule functionality
+  rule_function_code?: string;
+  rule_function_input_params?: RuleFunctionInputParam[];
+  rule_steps?: any[];
 }
 
 export interface CreateApprovalDto {
@@ -49,6 +65,7 @@ export interface ApprovalFilterParams {
   rule_id?: number;
   requested_by?: string;
   search?: string;
+  from_stage?: RuleStatus;
 }
 
 export interface PaginatedResponse<T> {

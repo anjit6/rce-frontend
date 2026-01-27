@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Button, message } from 'antd';
-import { PlusOutlined, SearchOutlined, FilterOutlined } from '@ant-design/icons';
+import { Button, message, Dropdown, Space } from 'antd';
+import { PlusOutlined, SearchOutlined, DownOutlined, FilterOutlined } from '@ant-design/icons';
 import Layout from '../../components/layout/Layout';
 import ApprovalsList from '../../components/approvals/ApprovalsList';
 import NewRequestModal from '../../components/approvals/NewRequestModal';
 import { Input } from '../../components/ui/input';
-import { approvalsApi, type CreateApprovalDto } from '../../api/approvals.api';
+import { approvalsApi, type CreateApprovalDto, type RuleStatus } from '../../api/approvals.api';
 
 type TabType = 'pending' | 'all';
 
@@ -16,6 +16,8 @@ export default function ApprovalsPage() {
   const [isNewRequestModalOpen, setIsNewRequestModalOpen] = useState(false);
   const [creatingRequest, setCreatingRequest] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [selectedStage, setSelectedStage] = useState<RuleStatus | null>(null);
+  const [selectedRequestedBy, setSelectedRequestedBy] = useState<string | null>(null);
 
   // Debounce search input
   useEffect(() => {
@@ -120,23 +122,147 @@ export default function ApprovalsPage() {
 
             {/* Right: Action Buttons */}
             <div className="flex items-center gap-3">
-              {/* Filter Button (placeholder for future implementation) */}
-              <Button
-                icon={<FilterOutlined />}
-                className="rounded-lg border-gray-300 hover:border-red-500 hover:text-red-500 h-10"
-              >
-                Filter
-              </Button>
+              <Space size="middle">
+                {/* Combined Filter Dropdown */}
+                <Dropdown
+                  menu={{
+                    items: [
+                      {
+                        type: 'group',
+                        label: <span className="text-xs font-semibold text-gray-500 px-2">Status</span>,
+                      },
+                      {
+                        key: 'stage-all',
+                        label: (
+                          <div className="px-2 py-1">
+                            <span className="text-gray-700">All Stages</span>
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'WIP',
+                        label: (
+                          <div className="px-2 py-1">
+                            <span className="text-gray-700">WIP</span>
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'TEST',
+                        label: (
+                          <div className="px-2 py-1">
+                            <span className="text-gray-700">TEST</span>
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'PENDING',
+                        label: (
+                          <div className="px-2 py-1">
+                            <span className="text-gray-700">PENDING</span>
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'PROD',
+                        label: (
+                          <div className="px-2 py-1">
+                            <span className="text-gray-700">PRODUCTION</span>
+                          </div>
+                        ),
+                      },
+                      {
+                        type: 'divider',
+                      },
+                      {
+                        type: 'group',
+                        label: <span className="text-xs font-semibold text-gray-500 px-2">Requested By</span>,
+                      },
+                      {
+                        key: 'user-all',
+                        label: (
+                          <div className="px-2 py-1">
+                            <span className="text-gray-700">All Users</span>
+                          </div>
+                        ),
+                      },
+                      // TODO: Fetch users from API and display here
+                      // Placeholder users for now
+                      {
+                        key: 'Current User',
+                        label: (
+                          <div className="px-2 py-1">
+                            <span className="text-gray-700">Current User</span>
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'John Doe',
+                        label: (
+                          <div className="px-2 py-1">
+                            <span className="text-gray-700">John Doe</span>
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'Mike Johnson',
+                        label: (
+                          <div className="px-2 py-1">
+                            <span className="text-gray-700">Mike Johnson</span>
+                          </div>
+                        ),
+                      },
+                    ],
+                    onClick: ({ key }) => {
+                      // Handle stage filter
+                      if (key === 'stage-all') {
+                        setSelectedStage(null);
+                      } else if (['WIP', 'TEST', 'PENDING', 'PROD'].includes(key)) {
+                        setSelectedStage(key as RuleStatus);
+                      }
+                      // Handle requested by filter
+                      else if (key === 'user-all') {
+                        setSelectedRequestedBy(null);
+                      } else if (['Current User', 'John Doe', 'Mike Johnson'].includes(key)) {
+                        setSelectedRequestedBy(key);
+                      }
+                    },
+                    className: 'min-w-[200px]',
+                  }}
+                  trigger={['click']}
+                  placement="bottomRight"
+                >
+                  <Button
+                    icon={<FilterOutlined />}
+                    className="rounded-lg border-gray-200 hover:border-red-500 hover:text-red-500 focus:border-red-500 focus:text-red-500 h-10"
+                  >
+                    {selectedStage || selectedRequestedBy ? (
+                      <span className="ml-1">
+                        {selectedStage && selectedRequestedBy
+                          ? `${selectedStage === 'PROD' ? 'PRODUCTION' : selectedStage}, ${selectedRequestedBy}`
+                          : selectedStage
+                          ? selectedStage === 'PROD'
+                            ? 'PRODUCTION'
+                            : selectedStage
+                          : selectedRequestedBy}
+                      </span>
+                    ) : (
+                      <span className="ml-1">Filter</span>
+                    )}
+                    <DownOutlined className="ml-2 text-xs" />
+                  </Button>
+                </Dropdown>
 
-              {/* New Request Button */}
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => setIsNewRequestModalOpen(true)}
-                className="rounded-lg bg-red-600 hover:bg-red-500 border-none h-10 px-5"
-              >
-                New Request
-              </Button>
+                {/* New Request Button */}
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => setIsNewRequestModalOpen(true)}
+                  className="rounded-lg bg-red-600 hover:bg-red-500 border-none h-10 px-5"
+                >
+                  New Request
+                </Button>
+              </Space>
             </div>
           </div>
         </div>
@@ -147,6 +273,8 @@ export default function ApprovalsPage() {
             selectedTab={selectedTab}
             searchQuery={searchQuery}
             refreshTrigger={refreshTrigger}
+            selectedStage={selectedStage}
+            selectedRequestedBy={selectedRequestedBy}
           />
         </div>
 

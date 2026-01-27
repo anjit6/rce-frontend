@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button, message, Spin } from 'antd';
-import { ArrowLeftOutlined, LoadingOutlined, PlayCircleOutlined, EyeOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, LoadingOutlined, PlayCircleOutlined, ExportOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import Layout from '../../components/layout/Layout';
 import ApproveModal from '../../components/approvals/ApproveModal';
 import RejectModal from '../../components/approvals/RejectModal';
@@ -184,28 +184,36 @@ export default function ApprovalDetailPage() {
                 </span>
                 <span className="text-gray-400 ml-2">•</span>
                 <span className="text-gray-600 ml-2">
-                  Version {approval.version_major || 0}.{approval.version_minor || 2}
+                  Version {approval.version_major ?? 0}.{approval.version_minor ?? 1}
                 </span>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
-              <Button
-                icon={<EyeOutlined />}
-                onClick={handleViewRule}
-                className="rounded-lg border-gray-300 hover:border-red-500 hover:text-red-500 h-10 px-5"
-              >
-                View Rule
-              </Button>
-              <Button
-                icon={<PlayCircleOutlined />}
-                onClick={handleTestRule}
-                className="rounded-lg border-gray-300 hover:border-red-500 hover:text-red-500 h-10 px-5"
-              >
-                Test Rule
-              </Button>
-              {isPending && (
+              {!isPending ? (
+                <Button
+                  icon={<ExportOutlined />}
+                  onClick={handleViewRule}
+                  className="rounded-lg border-gray-300 hover:border-red-500 hover:text-red-500 h-10 px-5"
+                >
+                  View Rule
+                </Button>
+              ) : (
                 <>
+                  <Button
+                    icon={<ExportOutlined />}
+                    onClick={handleViewRule}
+                    className="rounded-lg border-gray-300 hover:border-red-500 hover:text-red-500 h-10 px-5"
+                  >
+                    View Rule
+                  </Button>
+                  <Button
+                    icon={<PlayCircleOutlined />}
+                    onClick={handleTestRule}
+                    className="rounded-lg border-gray-300 hover:border-red-500 hover:text-red-500 h-10 px-5"
+                  >
+                    Test Rule
+                  </Button>
                   <Button
                     type="primary"
                     onClick={() => setIsApproveModalOpen(true)}
@@ -228,6 +236,92 @@ export default function ApprovalDetailPage() {
 
         {/* Content */}
         <div className="px-8 pb-8">
+          {/* Request Approved Banner */}
+          {approval.status === 'APPROVED' && approval.action_by && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                    <CheckCircleOutlined className="text-green-600 text-2xl" />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-xl font-semibold text-green-700 mb-4">Request Approved</h2>
+                  <div className="grid grid-cols-2 gap-8">
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500 mb-2">Action By</h3>
+                      <p className="text-gray-900 font-medium">{approval.action_by}</p>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500 mb-2">Timestamp</h3>
+                      <p className="text-gray-900 font-medium">
+                        {approval.action_at
+                          ? new Date(approval.action_at).toLocaleString('en-US', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true,
+                            })
+                          : 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                  {approval.action_comment && (
+                    <div className="mt-4">
+                      <h3 className="text-sm font-medium text-gray-500 mb-2">Comments</h3>
+                      <p className="text-gray-900 italic">"{approval.action_comment}"</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Request Rejected Banner */}
+          {approval.status === 'REJECTED' && approval.action_by && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                    <CloseCircleOutlined className="text-red-600 text-2xl" />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-xl font-semibold text-red-700 mb-4">Request Rejected</h2>
+                  <div className="grid grid-cols-2 gap-8">
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500 mb-2">Action By</h3>
+                      <p className="text-gray-900 font-medium">{approval.action_by}</p>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500 mb-2">Timestamp</h3>
+                      <p className="text-gray-900 font-medium">
+                        {approval.action_at
+                          ? new Date(approval.action_at).toLocaleString('en-US', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true,
+                            })
+                          : 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                  {approval.action_comment && (
+                    <div className="mt-4">
+                      <h3 className="text-sm font-medium text-gray-500 mb-2">Comments</h3>
+                      <p className="text-gray-900 italic">"{approval.action_comment}"</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             {/* Requested By and Requested At */}
             <div className="grid grid-cols-2 gap-8 mb-8">
@@ -267,13 +361,13 @@ export default function ApprovalDetailPage() {
               </div>
             </div>
 
-            {/* Action Details (if approved/rejected) */}
-            {!isPending && approval.action_by && (
+            {/* Action Details for Withdrawn (not Approved/Rejected, as those are shown in banner) */}
+            {!isPending && approval.status !== 'APPROVED' && approval.status !== 'REJECTED' && approval.action_by && (
               <div className="mt-8 pt-8 border-t border-gray-200">
                 <div className="grid grid-cols-2 gap-8 mb-6">
                   <div>
                     <h3 className="text-sm font-medium text-gray-500 mb-3">
-                      {approval.status === 'APPROVED' ? 'Approved By' : approval.status === 'REJECTED' ? 'Rejected By' : 'Action By'}
+                      {approval.status === 'REJECTED' ? 'Rejected By' : approval.status === 'WITHDRAWN' ? 'Withdrawn By' : 'Action By'}
                     </h3>
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
@@ -330,11 +424,11 @@ export default function ApprovalDetailPage() {
         />
 
         {/* Test Rule Panel */}
-        {approval && (
+        {approval && id && (
           <TestRulePanel
             isOpen={isTestRulePanelOpen}
             onClose={() => setIsTestRulePanelOpen(false)}
-            ruleId={approval.rule_id}
+            approvalId={id}
             ruleName={approval.rule_name || `Rule ${approval.rule_id}`}
           />
         )}

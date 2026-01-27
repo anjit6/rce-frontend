@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Table, Spin, message, Pagination } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { approvalsApi, type ApprovalStatus } from '../../api/approvals.api';
+import { approvalsApi, type ApprovalStatus, type RuleStatus } from '../../api/approvals.api';
 
 interface ApprovalsListProps {
   selectedTab: 'pending' | 'all';
   searchQuery: string;
   refreshTrigger?: number;
+  selectedStage?: RuleStatus | null;
+  selectedRequestedBy?: string | null;
 }
 
 interface TableApproval {
@@ -25,7 +27,7 @@ interface TableApproval {
   rule_id: number;
 }
 
-export default function ApprovalsList({ selectedTab, searchQuery, refreshTrigger }: ApprovalsListProps) {
+export default function ApprovalsList({ selectedTab, searchQuery, refreshTrigger, selectedStage, selectedRequestedBy }: ApprovalsListProps) {
   const navigate = useNavigate();
   const [approvals, setApprovals] = useState<TableApproval[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,22 +37,25 @@ export default function ApprovalsList({ selectedTab, searchQuery, refreshTrigger
 
   useEffect(() => {
     loadApprovals();
-  }, [selectedTab, searchQuery, currentPage, refreshTrigger]);
+  }, [selectedTab, searchQuery, currentPage, refreshTrigger, selectedStage, selectedRequestedBy]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedTab, searchQuery]);
+  }, [selectedTab, searchQuery, selectedStage, selectedRequestedBy]);
 
   const loadApprovals = async () => {
     try {
       setLoading(true);
-      const statusFilter = selectedTab === 'pending' ? 'PENDING' : 'ALL';
+      // Determine status filter based on tab
+      const statusFilter: ApprovalStatus | 'ALL' = selectedTab === 'pending' ? 'PENDING' : 'ALL';
 
       const response = await approvalsApi.getAll({
         page: currentPage,
         limit: pageSize,
-        status: statusFilter as ApprovalStatus | 'ALL',
+        status: statusFilter,
         search: searchQuery || undefined,
+        requested_by: selectedRequestedBy || undefined,
+        from_stage: selectedStage || undefined,
       });
 
       const tableData: TableApproval[] = response.data.map((approval) => ({
