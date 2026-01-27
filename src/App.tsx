@@ -5,22 +5,55 @@ import ApprovalsPage from './pages/approvals';
 import MappingsPage from './pages/mappings';
 import AuditPage from './pages/audit';
 import UsersPage from './pages/users';
+import LoginPage from './pages/login';
 import { SidebarProvider } from './context/SidebarContext';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function App() {
   return (
     <BrowserRouter>
-      <SidebarProvider>
-      <Routes>
-        <Route path="/" element={<Navigate to="/rules" replace />} />
-        <Route path="/rules" element={<RulesPage />} />
-        <Route path="/rule/create/:ruleId" element={<RuleCreatePage />} />
-        <Route path="/approvals" element={<ApprovalsPage />} />
-        <Route path="/mapping" element={<MappingsPage />} />
-        <Route path="/history" element={<AuditPage />} />
-        <Route path="/users" element={<UsersPage />} />
-      </Routes>
-      </SidebarProvider>
+      <AuthProvider>
+        <SidebarProvider>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/login" element={<LoginPage />} />
+
+            {/* Protected routes */}
+            <Route path="/" element={<Navigate to="/rules" replace />} />
+            <Route path="/rules" element={
+              <ProtectedRoute>
+                <RulesPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/rule/create/:ruleId" element={
+              <ProtectedRoute>
+                <RuleCreatePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/approvals" element={
+              <ProtectedRoute>
+                <ApprovalsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/mapping" element={
+              <ProtectedRoute>
+                <MappingsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/history" element={
+              <ProtectedRoute>
+                <AuditPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/users" element={
+              <ProtectedRoute>
+                <UsersPage />
+              </ProtectedRoute>
+            } />
+          </Routes>
+        </SidebarProvider>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
