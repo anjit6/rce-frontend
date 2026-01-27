@@ -1,6 +1,9 @@
 // Type definitions for subfunctions
 
-export type DataType = 'STRING' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'ANY';
+// Support both uppercase (legacy) and proper case data types
+export type DataType = 
+  | 'STRING' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'ANY'
+  | 'String' | 'Number' | 'Boolean' | 'Date';
 
 export type CategoryId = 'STR' | 'NUM' | 'DATE' | 'UTIL';
 

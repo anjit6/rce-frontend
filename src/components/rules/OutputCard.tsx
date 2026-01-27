@@ -65,7 +65,7 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
                         // Map returnType (UPPERCASE) to DataType (PascalCase)
                         switch (subfunc.returnType) {
                             case 'STRING': newDataType = 'String'; break;
-                            case 'NUMBER': newDataType = 'Integer'; break; // Default to Integer
+                            case 'NUMBER': newDataType = 'Number'; break;
                             case 'BOOLEAN': newDataType = 'Boolean'; break;
                             case 'DATE': newDataType = 'Date'; break;
                             default: newDataType = 'String';
@@ -184,8 +184,7 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
                                     size="large"
                                     options={[
                                         { label: 'String', value: 'String' },
-                                        { label: 'Integer', value: 'Integer' },
-                                        { label: 'Float', value: 'Float' },
+                                        { label: 'Number', value: 'Number' },
                                         { label: 'Boolean', value: 'Boolean' },
                                         { label: 'Date', value: 'Date' }
                                     ]}
@@ -202,7 +201,7 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
                                         Static Value <span className="text-black">*</span>
                                     </Label>
                                     <Input
-                                        type={config.dataType === 'Date' ? 'date' : (config.dataType === 'Integer' || config.dataType === 'Float') ? 'number' : 'text'}
+                                        type={config.dataType === 'Date' ? 'date' : config.dataType === 'Number' ? 'number' : 'text'}
                                         value={config.staticValue || ''}
                                         onChange={(e) => handleStaticValueChange(e.target.value)}
                                         placeholder="Enter static value"

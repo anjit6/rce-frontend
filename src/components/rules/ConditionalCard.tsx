@@ -165,8 +165,7 @@ export default function ConditionalCard({
     // Data type options for static values
     const dataTypeOptions = [
         { label: 'String', value: 'String' },
-        { label: 'Integer', value: 'Integer' },
-        { label: 'Float', value: 'Float' },
+        { label: 'Number', value: 'Number' },
         { label: 'Boolean', value: 'Boolean' },
         { label: 'Date', value: 'Date' }
     ];
@@ -392,7 +391,7 @@ export default function ConditionalCard({
                                                     size="large"
                                                     disabled={isViewMode}
                                                 />
-                                            ) : (condition.lhs.dataType === 'Integer' || condition.lhs.dataType === 'Float') ? (
+                                            ) : condition.lhs.dataType === 'Number' ? (
                                                 <InputNumber
                                                     value={condition.lhs.value ? Number(condition.lhs.value) : null}
                                                     onChange={(value) => handleConditionChange(index, 'lhs.value', value !== null ? String(value) : '')}
@@ -401,7 +400,7 @@ export default function ConditionalCard({
                                                     size="large"
                                                     disabled={isViewMode}
                                                     style={{ width: '100%' }}
-                                                    step={condition.lhs.dataType === 'Float' ? 0.01 : 1}
+                                                    step={0.01}
                                                 />
                                             ) : condition.lhs.dataType === 'Boolean' ? (
                                                 <Select
@@ -482,7 +481,7 @@ export default function ConditionalCard({
                                             />
                                             <Label className="text-sm font-medium text-gray-900">Value </Label>
                                             <Input
-                                                type={condition.rhs.dataType === 'Date' ? 'date' : (condition.rhs.dataType === 'Integer' || condition.rhs.dataType === 'Float') ? 'number' : 'text'}
+                                                type={condition.rhs.dataType === 'Date' ? 'date' : condition.rhs.dataType === 'Number' ? 'number' : 'text'}
                                                 value={condition.rhs.value}
                                                 onChange={(e) => handleConditionChange(index, 'rhs.value', e.target.value)}
                                                 placeholder="Enter value"
