@@ -2096,7 +2096,7 @@ export default function RuleCreatePage() {
 
                 {/* Action Buttons Card - Fixed at bottom */}
                 {!isViewMode && showConfiguration && (
-                    <div className="flex-shrink-0 z-50 bg-white py-4 flex justify-center gap-3">
+                    <div className="flex-shrink-0 z-10 bg-white py-4 flex justify-center gap-3">
                         <Button
                             type="primary"
                             size="large"
