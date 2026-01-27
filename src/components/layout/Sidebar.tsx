@@ -56,7 +56,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({
-    currentPath = '/rules',
+    currentPath: _currentPath = '/rules',
     onNavigate,
     userName = 'John Doe',
     userEmail = 'john.doe@example.com',

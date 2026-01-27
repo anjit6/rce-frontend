@@ -44,6 +44,15 @@ export interface PaginationParams {
   search?: string;
 }
 
+export interface ApprovalRequestRule {
+  id: number;
+  name: string;
+  rule_version_id: string;
+  version_major: number;
+  version_minor: number;
+  status?: RuleStatus; // Optional: used for determining promotion path
+}
+
 export interface PaginatedResponse<T> {
   success: boolean;
   data: T[];
@@ -179,6 +188,21 @@ export const rulesApi = {
     const response = await apiClient.get<ApiResponse<CompleteRuleResponse>>(`/api/rules/${id}/complete`);
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to fetch complete rule');
+    }
+    return response.data.data;
+  },
+
+  /**
+   * Get rules for approval request - returns simplified rule data with version info
+   */
+  async getForApprovalRequest(search?: string): Promise<ApprovalRequestRule[]> {
+    const params: any = { for_approval_request: true };
+    if (search) {
+      params.search = search;
+    }
+    const response = await apiClient.get<ApiResponse<ApprovalRequestRule[]>>('/api/rules', { params });
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch rules for approval request');
     }
     return response.data.data;
   },

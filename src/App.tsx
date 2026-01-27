@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import RulesPage from './pages/rules';
 import RuleCreatePage from './pages/rules/create';
 import ApprovalsPage from './pages/approvals';
+import ApprovalDetailPage from './pages/approvals/detail';
 import MappingsPage from './pages/mappings';
 import AuditPage from './pages/audit';
 import UsersPage from './pages/users';
@@ -36,6 +37,7 @@ function App() {
                 <ApprovalsPage />
               </ProtectedRoute>
             } />
+            <Route path="/approvals/:id" element={<ApprovalDetailPage />} />
             <Route path="/mapping" element={
               <ProtectedRoute>
                 <MappingsPage />

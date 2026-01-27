@@ -9,6 +9,10 @@ export { ruleFunctionStepsApi } from './rule-function-steps.api';
 export { categoriesApi } from './categories.api';
 export { subfunctionsApi } from './subfunctions.api';
 
+// Export types
+export type { Rule, RuleStatus, CreateRuleDto, UpdateRuleDto, ApprovalRequestRule } from './rules.api';
+export type { Subfunction } from './subfunctions.api';
+
 // Re-export for convenience
 import { authApi } from './auth.api';
 import { rulesApi } from './rules.api';

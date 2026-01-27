@@ -1,16 +1,163 @@
+import { useState, useEffect } from 'react';
+import { Button, message } from 'antd';
+import { PlusOutlined, SearchOutlined, FilterOutlined } from '@ant-design/icons';
 import Layout from '../../components/layout/Layout';
+import ApprovalsList from '../../components/approvals/ApprovalsList';
+import NewRequestModal from '../../components/approvals/NewRequestModal';
+import { Input } from '../../components/ui/input';
+import { approvalsApi, type CreateApprovalDto } from '../../api/approvals.api';
+
+type TabType = 'pending' | 'all';
 
 export default function ApprovalsPage() {
+  const [selectedTab, setSelectedTab] = useState<TabType>('pending');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [isNewRequestModalOpen, setIsNewRequestModalOpen] = useState(false);
+  const [creatingRequest, setCreatingRequest] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    document.title = 'Approvals - RCE';
+  }, []);
+
+  const handleNewRequest = async (
+    ruleId: number,
+    ruleName: string,
+    fromStage: 'WIP' | 'TEST' | 'PENDING' | 'PROD',
+    toStage: 'WIP' | 'TEST' | 'PENDING' | 'PROD',
+    comments: string,
+    ruleVersionId: string
+  ) => {
+    try {
+      setCreatingRequest(true);
+
+      // if (!ruleVersionId) {
+      //   message.error('Rule version ID is required');
+      //   return;
+      // }
+
+      const requestData: CreateApprovalDto = {
+        rule_version_id: ruleVersionId,
+        rule_id: ruleId,
+        from_stage: fromStage,
+        to_stage: toStage,
+        requested_by: 'Current User', // This should come from auth context
+        request_comment: comments || `Requesting approval to move ${ruleName} from ${fromStage} to ${toStage}`,
+      };
+
+      await approvalsApi.create(requestData);
+
+      message.success('Approval request created successfully!');
+      setIsNewRequestModalOpen(false);
+
+      // Trigger refresh of the approvals list
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (error: any) {
+      console.error('Failed to create approval request:', error);
+      const errorMessage = error?.response?.data?.error || error.message || 'Failed to create approval request';
+      message.error(errorMessage);
+    } finally {
+      setCreatingRequest(false);
+    }
+  };
+
   return (
     <Layout>
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-3xl font-semibold text-gray-900 mb-4">Approvals</h1>
-          <p className="text-lg text-gray-600">
-            This feature is under development and will be available in the next release
-          </p>
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <div className="px-8 py-6">
+          <h1 className="text-2xl font-semibold text-gray-900">Approvals</h1>
         </div>
+
+        {/* Tabs, Search and Actions Bar */}
+        <div className="px-8 pb-6">
+          <div className="flex items-center justify-between gap-4">
+            {/* Left: Tabs and Search */}
+            <div className="flex items-center gap-4">
+              {/* Toggle Buttons */}
+              <div className="flex items-center gap-1 bg-gray-100 rounded-full p-1">
+                <button
+                  className={`px-6 py-2 rounded-full font-medium transition-colors ${selectedTab === 'pending'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'bg-transparent text-gray-600 hover:text-gray-900'
+                    }`}
+                  onClick={() => setSelectedTab('pending')}
+                >
+                  Pending Requests
+                </button>
+                <button
+                  className={`px-6 py-2 rounded-full font-medium transition-colors ${selectedTab === 'all'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'bg-transparent text-gray-600 hover:text-gray-900'
+                    }`}
+                  onClick={() => setSelectedTab('all')}
+                >
+                  All Requests
+                </button>
+              </div>
+
+              {/* Search Input */}
+              <div className="relative" style={{ width: '25rem' }}>
+                <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10" />
+                <Input
+                  placeholder="Search by Request ID and details"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  className="pl-10 rounded-lg h-10"
+                />
+              </div>
+            </div>
+
+            {/* Right: Action Buttons */}
+            <div className="flex items-center gap-3">
+              {/* Filter Button (placeholder for future implementation) */}
+              <Button
+                icon={<FilterOutlined />}
+                className="rounded-lg border-gray-300 hover:border-red-500 hover:text-red-500 h-10"
+              >
+                Filter
+              </Button>
+
+              {/* New Request Button */}
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setIsNewRequestModalOpen(true)}
+                className="rounded-lg bg-red-600 hover:bg-red-500 border-none h-10 px-5"
+              >
+                New Request
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Approvals List */}
+        <div className="px-8 pb-8">
+          <ApprovalsList
+            selectedTab={selectedTab}
+            searchQuery={searchQuery}
+            refreshTrigger={refreshTrigger}
+          />
+        </div>
+
+        {/* New Request Modal */}
+        <NewRequestModal
+          isOpen={isNewRequestModalOpen}
+          onClose={() => setIsNewRequestModalOpen(false)}
+          onSubmit={handleNewRequest}
+          loading={creatingRequest}
+        />
       </div>
     </Layout>
-  )
+  );
 }
