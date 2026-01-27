@@ -1,14 +1,16 @@
 // Export API client
 export { apiClient, API_BASE_URL } from './client';
 
-// Export all API services
-export * from './rules.api';
-export * from './rule-functions.api';
-export * from './rule-function-steps.api';
-export * from './categories.api';
-export * from './subfunctions.api';
+// Export specific API services
+export { authApi } from './auth.api';
+export { rulesApi } from './rules.api';
+export { ruleFunctionsApi } from './rule-functions.api';
+export { ruleFunctionStepsApi } from './rule-function-steps.api';
+export { categoriesApi } from './categories.api';
+export { subfunctionsApi } from './subfunctions.api';
 
 // Re-export for convenience
+import { authApi } from './auth.api';
 import { rulesApi } from './rules.api';
 import { ruleFunctionsApi } from './rule-functions.api';
 import { ruleFunctionStepsApi } from './rule-function-steps.api';
@@ -16,6 +18,7 @@ import { categoriesApi } from './categories.api';
 import { subfunctionsApi } from './subfunctions.api';
 
 export const api = {
+  auth: authApi,
   rules: rulesApi,
   ruleFunctions: ruleFunctionsApi,
   ruleFunctionSteps: ruleFunctionStepsApi,

@@ -280,6 +280,11 @@ html {
   border-color: #dc2626 !important;
 }
 
+.ant-btn-primary {
+  background-color: #dc2626 !important;
+  border-color: #dc2626 !important;
+}
+
 .ant-btn-default:hover:not(:disabled),
 .ant-btn-default:focus:not(:disabled) {
   color: #ef4444 !important;
@@ -605,4 +610,24 @@ select option[selected] {
     background: #fee2e2 !important;
     color: #dc2626 !important;
   }
+}
+
+/* =============================================
+   Login Form Input Styles
+   ============================================= */
+
+/* Login form inputs - red/primary border color */
+
+.login-input.ant-input:hover,
+.login-input .ant-input:hover,
+.login-input.ant-input-affix-wrapper:hover {
+  border-color: #f87171 !important;
+}
+
+.login-input.ant-input:focus,
+.login-input .ant-input:focus,
+.login-input.ant-input-affix-wrapper:focus,
+.login-input.ant-input-affix-wrapper-focused {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.1) !important;
 }

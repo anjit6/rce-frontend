@@ -62,6 +62,40 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
+// Complete Rule Types
+export interface SaveRuleStepDto {
+  id: string;
+  type: 'subFunction' | 'condition' | 'output';
+  output_variable_name?: string;
+  return_type?: string;
+  next_step?: string | { true: string; false: string } | null;
+  sequence: number;
+  subfunction_id?: number;
+  subfunction_params?: any[];
+  conditions?: any[];
+  output_data?: any;
+}
+
+export interface SaveRuleDto {
+  code: string;
+  return_type?: string;
+  input_params?: any[];
+  steps: SaveRuleStepDto[];
+  created_by?: string;
+  comment?: string;
+}
+
+export interface CompleteRuleResponse {
+  rule: Rule;
+  rule_function: {
+    id: number;
+    code: string;
+    return_type: string | null;
+    input_params: any[];
+  };
+  steps: any[];
+}
+
 // Rules API Service
 export const rulesApi = {
   /**
@@ -113,5 +147,39 @@ export const rulesApi = {
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to delete rule');
     }
+  },
+
+  /**
+   * Save complete rule - creates/updates rule_functions and rule_function_steps
+   * Creates rule_versions entry on first save
+   */
+  async saveComplete(id: number, data: SaveRuleDto): Promise<CompleteRuleResponse> {
+    const response = await apiClient.post<ApiResponse<CompleteRuleResponse>>(`/api/rules/${id}/save`, data);
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to save complete rule');
+    }
+    return response.data.data;
+  },
+
+  /**
+   * Update complete rule - updates rule_functions and rule_function_steps
+   */
+  async updateComplete(id: number, data: SaveRuleDto): Promise<CompleteRuleResponse> {
+    const response = await apiClient.put<ApiResponse<CompleteRuleResponse>>(`/api/rules/${id}/complete`, data);
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to update complete rule');
+    }
+    return response.data.data;
+  },
+
+  /**
+   * Get complete rule - fetches rule with all details, input_params, code and steps
+   */
+  async getComplete(id: number): Promise<CompleteRuleResponse> {
+    const response = await apiClient.get<ApiResponse<CompleteRuleResponse>>(`/api/rules/${id}/complete`);
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch complete rule');
+    }
+    return response.data.data;
   },
 };

@@ -3,9 +3,8 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button, Collapse, Modal, Tooltip, Select, message } from 'antd';
 import { PlusOutlined, CloseOutlined, SearchOutlined, ExclamationCircleOutlined, CloseCircleFilled, CheckOutlined, CopyOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
 import Layout from '../../components/layout/Layout';
-import { rulesService } from '../../services/rules.service';
 import { subfunctionsService, Subfunction } from '../../services/subfunctions.service';
-import { ruleFunctionsApi, ruleFunctionStepsApi, CreateRuleFunctionStepDto } from '../../api';
+import { rulesApi } from '../../api/rules.api';
 import { InputParameter, FunctionType, ConfigurationStep } from '../../types/rule-configuration';
 import RuleConfigurationCard from '../../components/rules/RuleConfigurationCard';
 import { Input } from '../../components/ui/input';
@@ -15,18 +14,6 @@ import { assignStepIds } from '../../utils/stepIdGenerator';
 
 const { Panel } = Collapse;
 const { confirm } = Modal;
-
-// localStorage helper functions
-const saveRuleConfiguration = (config: any) => {
-    try {
-        const existingConfigs = localStorage.getItem('rce_rule_configurations');
-        const configurations = existingConfigs ? JSON.parse(existingConfigs) : {};
-        configurations[config.ruleId] = config;
-        localStorage.setItem('rce_rule_configurations', JSON.stringify(configurations));
-    } catch (error) {
-        console.error('Failed to save configuration to localStorage:', error);
-    }
-};
 
 // Utility function to find all usages of an input parameter in configuration steps
 const findInputParamUsages = (
@@ -188,32 +175,26 @@ export default function RuleCreatePage() {
         if (ruleId) {
             const loadRuleData = async () => {
                 try {
+                    // Load complete rule data using the new API
+                    const isNewRule = (location.state as any)?.isNewRule;
 
-                    // Load rule metadata from API
-                    const ruleData = await rulesService.getRuleById(parseInt(ruleId));
-                    if (!ruleData) {
+                    const completeRuleData = await rulesApi.getComplete(parseInt(ruleId));
+
+                    if (!completeRuleData || !completeRuleData.rule) {
                         message.error('Rule not found');
                         navigate('/rules');
                         return;
                     }
 
-                    setRule(ruleData);
-                    document.title = `${ruleData.name} - RCE`;
+                    setRule(completeRuleData.rule);
+                    document.title = `${completeRuleData.rule.name} - RCE`;
 
-                    // Check if this is a newly created rule from navigation state
-                    const isNewRule = (location.state as any)?.isNewRule;
-
-                    // Try to load configuration from API first
-                    try {
-                        console.log("🔄 Loading configuration from API...");
-                        const ruleFunction = await ruleFunctionsApi.getByRuleId(ruleData.id);
-                        const steps = await ruleFunctionStepsApi.getByRuleFunctionId(ruleFunction.id, { limit: 1000 });
-
-                        console.log("📂 Loading saved configuration from API for rule:", ruleId);
+                    // Check if rule function exists and has data
+                    if (completeRuleData.rule_function && completeRuleData.rule_function.id > 0) {
 
                         // Restore input parameters from rule function
-                        if (ruleFunction.input_params && ruleFunction.input_params.length > 0) {
-                            const apiInputParams = ruleFunction.input_params.map((param, index) => ({
+                        if (completeRuleData.rule_function.input_params && completeRuleData.rule_function.input_params.length > 0) {
+                            const apiInputParams = completeRuleData.rule_function.input_params.map((param: any, index: number) => ({
                                 id: String(Date.now() + index),
                                 name: `Input Parameter ${index + 1}`,
                                 fieldName: param.name,
@@ -221,12 +202,10 @@ export default function RuleCreatePage() {
                                 dataType: param.data_type.charAt(0).toUpperCase() + param.data_type.slice(1)
                             }));
                             setInputParameters(apiInputParams);
-                            console.log("✅ Input parameters restored from API:", apiInputParams.length, "parameters");
                         }
 
                         // Restore configuration steps from API
-                        if (steps.data && steps.data.length > 0) {
-                            console.log("🔄 Converting API steps to frontend format...");
+                        if (completeRuleData.steps && completeRuleData.steps.length > 0) {
 
                             // Helper function to build nested tree structure from flat API steps
                             const buildNestedSteps = (apiSteps: any[], inputParams: InputParameter[]): ConfigurationStep[] => {
@@ -411,10 +390,10 @@ export default function RuleCreatePage() {
                                 return [];
                             };
 
-                            const convertedSteps = buildNestedSteps(steps.data, inputParameters);
+                            const convertedSteps = buildNestedSteps(completeRuleData.steps, inputParameters);
 
                             // Debug logging for structure verification
-                            console.log("📊 API Steps Count:", steps.data.length);
+                            console.log("📊 API Steps Count:", completeRuleData.steps.length);
                             console.log("🌳 Root-level Converted Steps:", convertedSteps.length);
                             console.log("🔍 Structure Preview:", JSON.stringify(convertedSteps.map(s => ({
                                 id: s.id,
@@ -428,69 +407,18 @@ export default function RuleCreatePage() {
                             updateConfigurationSteps(convertedSteps);
                             setConfigurationStarted(true);
                             setShowConfiguration(true);
-                            console.log("✅ Configuration steps restored from API:", convertedSteps.length, "steps");
                         }
 
                         // Store the generated code
-                        if (ruleFunction.code) {
-                            setGeneratedJsCode(ruleFunction.code);
-                            console.log("✅ Generated JavaScript code loaded from API");
+                        if (completeRuleData.rule_function.code) {
+                            setGeneratedJsCode(completeRuleData.rule_function.code);
                         }
 
                         setHasUnsavedChanges(false);
-                        setConfigurationStarted(steps.data.length > 0);
-                        console.log("✅ Configuration loaded from API successfully!");
-                    } catch (apiError: any) {
-                        // If API load fails, fall back to localStorage
-                        console.log("ℹ️ No configuration found in API, trying localStorage...", apiError.message);
-
-                        const savedConfig = localStorage.getItem('rce_rule_configurations');
-                        if (savedConfig) {
-                            try {
-                                const configurations = JSON.parse(savedConfig);
-                                const ruleConfig = configurations[ruleId];
-
-                                if (ruleConfig) {
-                                    console.log("📂 Loading saved configuration from localStorage for rule:", ruleId);
-                                    console.log("Saved config:", ruleConfig);
-
-                                    // Restore input parameters
-                                    if (ruleConfig.inputParameters && ruleConfig.inputParameters.length > 0) {
-                                        setInputParameters(ruleConfig.inputParameters);
-                                        console.log("✅ Input parameters restored from localStorage:", ruleConfig.inputParameters.length, "parameters");
-                                    }
-
-                                    // Restore configuration steps
-                                    if (ruleConfig.configurationSteps && ruleConfig.configurationSteps.length > 0) {
-                                        updateConfigurationSteps(ruleConfig.configurationSteps);
-                                        setConfigurationStarted(true);
-                                        setShowConfiguration(true);
-                                        console.log("✅ Configuration steps restored from localStorage:", ruleConfig.configurationSteps.length, "steps");
-                                    }
-
-                                    // Store the saved ruleFunction (including the generated code)
-                                    if (ruleConfig.ruleFunction) {
-                                        if (ruleConfig.ruleFunction.code) {
-                                            setGeneratedJsCode(ruleConfig.ruleFunction.code);
-                                            console.log("✅ Generated JavaScript code loaded from localStorage");
-                                        }
-                                    }
-
-                                    setHasUnsavedChanges(false);
-                                    console.log("✅ Configuration loaded from localStorage successfully!");
-                                } else {
-                                    console.log("ℹ️ No saved configuration found in localStorage for rule:", ruleId);
-                                }
-                            } catch (parseError) {
-                                console.error("Failed to parse localStorage config:", parseError);
-                            }
-                        } else {
-                            console.log("ℹ️ No configurations in localStorage");
-                        }
+                        setConfigurationStarted(completeRuleData.steps.length > 0);
                     }
 
                     // Set view mode based on whether it's a new rule
-                    // New rules start in edit mode, existing rules start in view mode
                     setIsViewMode(!isNewRule);
                 } catch (error) {
                     console.error('Failed to load rule:', error);
@@ -1235,6 +1163,7 @@ export default function RuleCreatePage() {
             });
             return;
         }
+
         // Generate the ruleFunction JSON structure
         const ruleFunction = {
             id: Date.now(),
@@ -1255,7 +1184,6 @@ export default function RuleCreatePage() {
         };
 
         // Generate JavaScript code from the rule function
-        // Always regenerate to ensure latest compiler changes are applied
         console.log("🔄 Regenerating JavaScript code...");
         try {
             const compiledCode = compileRule(ruleFunction as any);
@@ -1270,139 +1198,70 @@ export default function RuleCreatePage() {
                 okText: 'OK',
                 centered: true
             });
-            return; // Stop save process if compilation fails
+            return;
         }
 
-        // Create the configuration object to save
-        const configToSave = {
-            ruleId: rule?.id,
-            ruleName: rule?.name,
-            savedAt: new Date().toISOString(),
-            inputParameters,
-            configurationSteps,
-            ruleFunction
-        };
-
         try {
-            // Save to localStorage as backup
-            saveRuleConfiguration(configToSave);
-
-            // Log the generated JSON with clear formatting
-            console.log("=".repeat(80));
-            console.log("🔄 Saving Configuration to API...");
-            console.log("=".repeat(80));
-            console.log("Rule ID:", rule?.id);
-            console.log("Rule Name:", rule?.name);
-            console.log("=".repeat(80));
-            console.log("Generated Rule Function JSON:");
-            console.log(JSON.stringify(ruleFunction, null, 2));
-            console.log("=".repeat(80));
-
-            // Check if rule function already exists for this rule
-            let savedRuleFunction;
-            try {
-                const existingRuleFunction = await ruleFunctionsApi.getByRuleId(rule.id);
-                console.log("📝 Updating existing rule function...");
-                // Update existing rule function
-                savedRuleFunction = await ruleFunctionsApi.update(existingRuleFunction.id, {
-                    code: ruleFunction.code,
-                    return_type: ruleFunction.returnType,
-                    input_params: ruleFunction.inputParams.map((param: any) => ({
-                        sequence: param.sequence,
-                        name: param.name,
-                        data_type: param.dataType,
-                        param_type: param.paramType as 'inputField' | 'metaDataField' | 'default',
-                        mandatory: param.mandatory === "true" || param.mandatory === true,
-                        default_value: param.default || null,
-                        description: param.description || ''
-                    }))
-                });
-                console.log("✅ Rule function updated successfully!");
-
-                // Delete existing steps before creating new ones
-                console.log("🗑️ Deleting old steps...");
-                const existingSteps = await ruleFunctionStepsApi.getByRuleFunctionId(existingRuleFunction.id, { limit: 1000 });
-                if (existingSteps.data.length > 0) {
-                    await Promise.all(
-                        existingSteps.data.map(step =>
-                            ruleFunctionStepsApi.delete(step.id, existingRuleFunction.id)
-                        )
-                    );
-                    console.log(`✅ Deleted ${existingSteps.data.length} old steps`);
-                }
-            } catch (error: any) {
-                if (error.message.includes('not found') || error.message.includes('404')) {
-                    console.log("✨ Creating new rule function...");
-                    // Create new rule function
-                    savedRuleFunction = await ruleFunctionsApi.create({
-                        rule_id: rule.id,
-                        code: ruleFunction.code,
-                        return_type: ruleFunction.returnType,
-                        input_params: ruleFunction.inputParams.map((param: any) => ({
-                            sequence: param.sequence,
-                            name: param.name,
-                            data_type: param.dataType,
-                            param_type: param.paramType as 'inputField' | 'metaDataField' | 'default',
-                            mandatory: param.mandatory === "true" || param.mandatory === true,
-                            default_value: param.default || null,
-                            description: param.description || ''
-                        }))
-                    });
-                    console.log("✅ Rule function created successfully!");
-                } else {
-                    throw error;
-                }
-            }
-
-            // Save all steps
-            console.log("💾 Saving steps...");
-            const stepsToCreate: CreateRuleFunctionStepDto[] = ruleFunction.steps.map((step: any, index: number) => {
-                // Determine subfunction_id: if it's already a number, use it; if it's a string, find the matching subfunction
-                let subfunctionId = null;
-                if (step.subFunction?.id) {
-                    if (typeof step.subFunction.id === 'number') {
-                        subfunctionId = step.subFunction.id;
-                    } else {
-                        // Find the subfunction by function_name (string ID)
-                        const matchingSubfunction = subfunctions.find(sf => sf.functionName === step.subFunction.id);
-                        subfunctionId = matchingSubfunction?.id || null;
+            // Prepare data for the new save API
+            const saveData = {
+                code: ruleFunction.code,
+                return_type: ruleFunction.returnType,
+                input_params: ruleFunction.inputParams.map((param: any) => ({
+                    sequence: param.sequence,
+                    name: param.name,
+                    data_type: param.dataType,
+                    param_type: param.paramType,
+                    mandatory: param.mandatory === "true" || param.mandatory === true,
+                    default_value: param.default || null,
+                    description: param.description || ''
+                })),
+                steps: ruleFunction.steps.map((step: any, index: number) => {
+                    // Determine subfunction_id
+                    let subfunctionId = null;
+                    if (step.subFunction?.id) {
+                        if (typeof step.subFunction.id === 'number') {
+                            subfunctionId = step.subFunction.id;
+                        } else {
+                            const matchingSubfunction = subfunctions.find(sf => sf.functionName === step.subFunction.id);
+                            subfunctionId = matchingSubfunction?.id || null;
+                        }
                     }
-                }
 
-                return {
-                    id: step.id,
-                    rule_function_id: savedRuleFunction.id,
-                    type: step.type as 'subFunction' | 'condition' | 'output',
-                    output_variable_name: step.outputVariableName || null,
-                    return_type: step.returnType || null,
-                    next_step: step.next || null,
-                    sequence: index + 1,
-                    subfunction_id: subfunctionId,
-                    subfunction_params: step.subFunction?.inputParams?.map((param: any) => ({
-                        subfunction_param_name: param.subFuncParamId || '',
-                        data_type: param.data.type as 'static' | 'inputParam' | 'stepOutputVariable',
-                        data_value: param.data.value || ''
-                    })) || [],
-                    conditions: step.conditions?.map((cond: any) => ({
-                        sequence: cond.sequence,
-                        and_or: cond.andOr || null,
-                        lhs_type: cond.lhs.type as 'static' | 'inputParam' | 'stepOutputVariable',
-                        lhs_data_type: cond.lhs.dataType,
-                        lhs_value: cond.lhs.value,
-                        operator: cond.operator,
-                        rhs_type: cond.rhs.type as 'static' | 'inputParam' | 'stepOutputVariable',
-                        rhs_data_type: cond.rhs.dataType,
-                        rhs_value: cond.rhs.value
-                    })) || [],
-                    output_data: step.data ? {
-                        data_type: step.data.type as 'static' | 'inputParam' | 'stepOutputVariable',
-                        data_value_type: step.data.dataType,
-                        data_value: step.data.value || ''
-                    } : undefined
-                };
-            });
+                    return {
+                        id: step.id,
+                        type: step.type,
+                        output_variable_name: step.outputVariableName || null,
+                        return_type: step.returnType || null,
+                        next_step: step.next || null,
+                        sequence: index + 1,
+                        subfunction_id: subfunctionId,
+                        subfunction_params: step.subFunction?.inputParams?.map((param: any) => ({
+                            subfunction_param_name: param.subFuncParamId || '',
+                            data_type: param.data.type,
+                            data_value: param.data.value || ''
+                        })) || [],
+                        conditions: step.conditions?.map((cond: any) => ({
+                            sequence: cond.sequence,
+                            and_or: cond.andOr || null,
+                            lhs_type: cond.lhs.type,
+                            lhs_data_type: cond.lhs.dataType,
+                            lhs_value: cond.lhs.value,
+                            operator: cond.operator,
+                            rhs_type: cond.rhs.type,
+                            rhs_data_type: cond.rhs.dataType,
+                            rhs_value: cond.rhs.value
+                        })) || [],
+                        output_data: step.data ? {
+                            data_type: step.data.type,
+                            data_value_type: step.data.dataType,
+                            data_value: step.data.value || ''
+                        } : undefined
+                    };
+                })
+            };
 
-            await ruleFunctionStepsApi.bulkCreate(stepsToCreate);
+            // Use the new save complete API
+            await rulesApi.saveComplete(rule.id, saveData);
 
             // Reset unsaved changes flag after successful save
             setHasUnsavedChanges(false);
@@ -1874,9 +1733,9 @@ export default function RuleCreatePage() {
                                                                     size="large"
                                                                     options={[
                                                                         { label: 'String', value: 'String' },
-                                                                        { label: 'Integer', value: 'Integer' },
-                                                                        { label: 'Float', value: 'Float' },
-                                                                        { label: 'Boolean', value: 'Boolean' }
+                                                                        { label: 'Number', value: 'Number' },
+                                                                        { label: 'Boolean', value: 'Boolean' },
+                                                                        { label: 'Date', value: 'Date' }
                                                                     ]}
                                                                     disabled
                                                                 />
@@ -1966,9 +1825,9 @@ export default function RuleCreatePage() {
                                                                     status={parameterErrors[param.id]?.dataType ? 'error' : undefined}
                                                                     options={[
                                                                         { label: 'String', value: 'String' },
-                                                                        { label: 'Integer', value: 'Integer' },
-                                                                        { label: 'Float', value: 'Float' },
-                                                                        { label: 'Boolean', value: 'Boolean' }
+                                                                        { label: 'Number', value: 'Number' },
+                                                                        { label: 'Boolean', value: 'Boolean' },
+                                                                        { label: 'Date', value: 'Date' }
                                                                     ]}
                                                                     filterOption={(input, option) =>
                                                                         (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
