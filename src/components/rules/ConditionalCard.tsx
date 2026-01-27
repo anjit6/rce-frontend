@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Select, Button, Popover } from 'antd';
+import { Select, Button, Popover, DatePicker, InputNumber } from 'antd';
 import { PlusOutlined, CloseOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { ConfigurationStep, InputParameter } from '../../types/rule-configuration';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -257,17 +258,17 @@ export default function ConditionalCard({
 
     // Popover content for condition type selection
     const conditionTypeContent = (
-        <div className="flex flex-col gap-2 p-2">
+        <div className="flex flex-col items-center gap-2 p-2">
             <Button
                 onClick={() => addConditionWithType('OR')}
-                className="w-full text-left justify-start"
+                className="text-center justify-center"
                 type="text"
             >
                 OR
             </Button>
             <Button
                 onClick={() => addConditionWithType('AND')}
-                className="w-full text-left justify-start"
+                className="text-center justify-center"
                 type="text"
             >
                 AND
@@ -333,14 +334,19 @@ export default function ConditionalCard({
                 <div className="space-y-3 mb-6 overflow-visible">
                     {conditions.map((condition: Condition, index: number) => (
                         <div key={condition.id} className="space-y-3">
-                            {/* AND/OR Badge (for all except first condition) */}
+                            {/* AND/OR Badge (for all except first condition) - aligned with Operator column */}
                             {index > 0 && condition.andOr && (
-                                <div className="flex items-center justify-start">
-                                    <span className={`px-4 py-1 text-sm font-semibold rounded ${condition.andOr === 'OR' ? 'bg-blue-100 text-blue-700' :
-                                        'bg-green-100 text-green-700'
-                                        }`}>
-                                        {condition.andOr}
-                                    </span>
+                                <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-3">
+                                    <div></div>
+                                    <div className="flex justify-center">
+                                        <span className={`px-4 py-1 text-sm font-semibold rounded ${condition.andOr === 'OR' ? 'bg-blue-100 text-blue-700' :
+                                            'bg-green-100 text-green-700'
+                                            }`}>
+                                            {condition.andOr}
+                                        </span>
+                                    </div>
+                                    <div></div>
+                                    <div></div>
                                 </div>
                             )}
 
@@ -377,15 +383,49 @@ export default function ConditionalCard({
                                                 disabled={isViewMode}
                                             />
                                             <Label className="text-sm font-medium text-gray-900">Value </Label>
-                                            <Input
-                                                type={condition.lhs.dataType === 'Date' ? 'date' : (condition.lhs.dataType === 'Integer' || condition.lhs.dataType === 'Float') ? 'number' : 'text'}
-                                                value={condition.lhs.value}
-                                                onChange={(e) => handleConditionChange(index, 'lhs.value', e.target.value)}
-                                                placeholder="Enter value"
-                                                className="w-full"
-                                                inputSize="lg"
-                                                disabled={isViewMode}
-                                            />
+                                            {condition.lhs.dataType === 'Date' ? (
+                                                <DatePicker
+                                                    value={condition.lhs.value ? dayjs(condition.lhs.value) : null}
+                                                    onChange={(date) => handleConditionChange(index, 'lhs.value', date ? date.format('YYYY-MM-DD') : '')}
+                                                    placeholder="Select date"
+                                                    className="w-full"
+                                                    size="large"
+                                                    disabled={isViewMode}
+                                                />
+                                            ) : (condition.lhs.dataType === 'Integer' || condition.lhs.dataType === 'Float') ? (
+                                                <InputNumber
+                                                    value={condition.lhs.value ? Number(condition.lhs.value) : null}
+                                                    onChange={(value) => handleConditionChange(index, 'lhs.value', value !== null ? String(value) : '')}
+                                                    placeholder="Enter number"
+                                                    className="w-full"
+                                                    size="large"
+                                                    disabled={isViewMode}
+                                                    style={{ width: '100%' }}
+                                                    step={condition.lhs.dataType === 'Float' ? 0.01 : 1}
+                                                />
+                                            ) : condition.lhs.dataType === 'Boolean' ? (
+                                                <Select
+                                                    value={condition.lhs.value || undefined}
+                                                    onChange={(value) => handleConditionChange(index, 'lhs.value', value)}
+                                                    placeholder="Select boolean value"
+                                                    className="w-full"
+                                                    size="large"
+                                                    options={[
+                                                        { label: 'True', value: 'true' },
+                                                        { label: 'False', value: 'false' }
+                                                    ]}
+                                                    disabled={isViewMode}
+                                                />
+                                            ) : (
+                                                <Input
+                                                    value={condition.lhs.value}
+                                                    onChange={(e) => handleConditionChange(index, 'lhs.value', e.target.value)}
+                                                    placeholder="Enter value"
+                                                    className="w-full"
+                                                    inputSize="lg"
+                                                    disabled={isViewMode}
+                                                />
+                                            )}
                                         </>
                                     )}
                                 </div>
@@ -469,24 +509,29 @@ export default function ConditionalCard({
                         </div>
                     ))}
 
-                    {/* Add Condition Button */}
+                    {/* Add Condition Button - aligned with Operator column */}
                     {!isViewMode && (
-                        <div className="flex justify-center">
-                            <Popover
-                                content={conditionTypeContent}
-                                trigger="click"
-                                open={popoverVisible === 0}
-                                onOpenChange={(visible) => setPopoverVisible(visible ? 0 : null)}
-                                placement="bottom"
-                            >
-                                <Button
-                                    icon={<PlusOutlined />}
-                                    size="large"
-                                    className="border-red-400 text-red-500 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 hover:shadow-lg focus:border-red-400 focus:text-red-500 px-6 transition-all"
+                        <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-3">
+                            <div></div>
+                            <div className="flex justify-center">
+                                <Popover
+                                    content={conditionTypeContent}
+                                    trigger="click"
+                                    open={popoverVisible === 0}
+                                    onOpenChange={(visible) => setPopoverVisible(visible ? 0 : null)}
+                                    placement="bottom"
                                 >
-                                    Add Condition
-                                </Button>
-                            </Popover>
+                                    <Button
+                                        icon={<PlusOutlined />}
+                                        size="large"
+                                        className="border-red-400 text-red-500 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 hover:shadow-lg focus:border-red-400 focus:text-red-500 px-6 transition-all"
+                                    >
+                                        Add Condition
+                                    </Button>
+                                </Popover>
+                            </div>
+                            <div></div>
+                            <div></div>
                         </div>
                     )}
                 </div>

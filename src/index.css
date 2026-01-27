@@ -265,6 +265,21 @@ html {
   border-color: #ef4444 !important;
 }
 
+/* Modal danger button - always red */
+.ant-btn-primary.ant-btn-dangerous,
+.ant-btn-primary.ant-btn-dangerous:hover,
+.ant-btn-primary.ant-btn-dangerous:focus,
+.ant-btn-primary.ant-btn-dangerous:active {
+  background-color: #ef4444 !important;
+  border-color: #ef4444 !important;
+  color: white !important;
+}
+
+.ant-btn-primary.ant-btn-dangerous:hover {
+  background-color: #dc2626 !important;
+  border-color: #dc2626 !important;
+}
+
 .ant-btn-default:hover:not(:disabled),
 .ant-btn-default:focus:not(:disabled) {
   color: #ef4444 !important;

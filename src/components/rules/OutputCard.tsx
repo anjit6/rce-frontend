@@ -110,18 +110,13 @@ export default function OutputCard({ step, inputParameters, configurationSteps, 
 
     return (
         <div className="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 relative" style={{ maxWidth: '800px', margin: '0 auto' }}>
-            {/* Success/Error Badge - Top Right Corner */}
-            <div className={`absolute top-3 right-32 px-3 py-1 text-xs font-semibold rounded ${responseType === 'error' ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'}`}>
-                {responseType === 'error' ? 'Error' : 'Success'}
-            </div>
-
-            {/* Step Number Badge and Category - Top Right Corner */}
+            {/* Step Number and Output Type Badge - Top Right Corner (leaving space for cross icon) */}
             <div className="absolute top-3 right-12 flex flex-row items-center gap-2">
                 <div className={`px-3 py-1 text-xs font-semibold rounded ${responseType === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                     {stepNumberText}
                 </div>
                 <div className={`px-3 py-1 text-xs font-semibold rounded ${responseType === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                    Output
+                    {responseType === 'error' ? 'Error-Output' : 'Success-Output'}
                 </div>
             </div>
 

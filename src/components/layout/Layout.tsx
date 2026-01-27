@@ -9,20 +9,14 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, showSidebar = true }: LayoutProps) {
-  const { isCollapsed: isSidebarCollapsed, setIsCollapsed: setIsSidebarCollapsed } = useSidebar();
+  const { isCollapsed: isSidebarCollapsed } = useSidebar();
   const navigate = useNavigate();
 
   const handleNavigate = (path: string) => {
-    // Handle both relative and absolute paths
-    if (path === 'rules') {
-      navigate('/rules');
-    } else if (path === 'approvals') {
-      navigate('/approvals');
-    } else if (path.startsWith('/')) {
-      // Already has leading slash
+    // All paths should now start with /
+    if (path.startsWith('/')) {
       navigate(path);
     } else {
-      // Add leading slash if missing
       navigate(`/${path}`);
     }
   };
@@ -33,8 +27,11 @@ export default function Layout({ children, showSidebar = true }: LayoutProps) {
 
   return (
     <div className="min-h-screen w-full bg-gray-50">
-      <Sidebar onCollapse={setIsSidebarCollapsed} onNavigate={handleNavigate} />
-      <main className={`transition-all duration-300 min-h-screen bg-gray-50 ${isSidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
+      <Sidebar onNavigate={handleNavigate} />
+      <main
+        className="transition-all duration-300 min-h-screen bg-gray-50 w-full"
+        style={{ marginLeft: isSidebarCollapsed ? '80px' : '256px', width: isSidebarCollapsed ? 'calc(100% - 80px)' : 'calc(100% - 256px)' }}
+      >
         {children}
       </main>
     </div>

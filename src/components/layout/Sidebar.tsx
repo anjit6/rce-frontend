@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Menu, Tooltip, Avatar } from 'antd';
 import type { MenuProps } from 'antd';
 import {
@@ -13,17 +14,18 @@ import {
 } from '@ant-design/icons';
 import { LogOut } from 'lucide-react';
 import logoImage from '@/assets/images/logo.png';
+import { useSidebar } from '../../context/SidebarContext';
 
 type MenuItem = Required<MenuProps>['items'][number];
 
 const menuItems: MenuItem[] = [
     {
-        key: 'rules',
+        key: '/rules',
         icon: <FileTextOutlined className="text-lg" />,
         label: 'Rules',
     },
     {
-        key: 'approvals',
+        key: '/approvals',
         icon: <CheckCircleOutlined className="text-lg" />,
         label: 'Approvals',
     },
@@ -51,27 +53,39 @@ interface SidebarProps {
     userEmail?: string;
     userAvatar?: string;
     onLogout?: () => void;
-    onCollapse?: (collapsed: boolean) => void;
 }
 
 export default function Sidebar({
-    currentPath = 'rules',
+    currentPath = '/rules',
     onNavigate,
     userName = 'John Doe',
     userEmail = 'john.doe@example.com',
     userAvatar,
-    onLogout,
-    onCollapse
+    onLogout
 }: SidebarProps) {
-    const [isCollapsed, setIsCollapsed] = useState(true);
-    const [selectedKey, setSelectedKey] = useState(currentPath);
+    const { isCollapsed, setIsCollapsed } = useSidebar();
+    const location = useLocation();
+
+    // Get the current path and find matching menu key
+    const getSelectedKey = () => {
+        const path = location.pathname;
+        // Check if path starts with any menu item key
+        const menuKey = menuItems.find(item => {
+            const key = item?.key as string;
+            return path === key || path.startsWith(key + '/');
+        });
+        return menuKey?.key as string || '/rules';
+    };
+
+    const [selectedKey, setSelectedKey] = useState(getSelectedKey());
+
+    // Update selected key when location changes
+    useEffect(() => {
+        setSelectedKey(getSelectedKey());
+    }, [location.pathname]);
 
     const handleToggleCollapse = () => {
-        const newCollapsedState = !isCollapsed;
-        setIsCollapsed(newCollapsedState);
-        if (onCollapse) {
-            onCollapse(newCollapsedState);
-        }
+        setIsCollapsed(!isCollapsed);
     };
 
     const handleMenuClick: MenuProps['onClick'] = ({ key }) => {

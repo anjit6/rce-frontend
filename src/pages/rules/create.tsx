@@ -148,6 +148,7 @@ export default function RuleCreatePage() {
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [subfunctions, setSubfunctions] = useState<Subfunction[]>([]);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const inputParametersCardRef = useRef<HTMLDivElement>(null);
     const [zoomLevel, setZoomLevel] = useState(100); // Default zoom level 100%
     const [showConfiguration, setShowConfiguration] = useState(false); // Controls empty state visibility
 
@@ -504,6 +505,20 @@ export default function RuleCreatePage() {
             setIsViewMode(false);
         }
     }, [ruleId, navigate, location]);
+
+    // Scroll to show the Input Parameters card when entering view mode
+    useEffect(() => {
+        if (isViewMode && showConfiguration && inputParametersCardRef.current) {
+            // Small delay to ensure the DOM is rendered
+            setTimeout(() => {
+                inputParametersCardRef.current?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start',
+                    inline: 'center'
+                });
+            }, 100);
+        }
+    }, [isViewMode, showConfiguration]);
 
     // Update active accordion keys when modal opens or search query changes
     useEffect(() => {
@@ -1399,6 +1414,10 @@ export default function RuleCreatePage() {
                 okText: 'OK',
                 centered: true,
                 icon: null,
+                okButtonProps: {
+                    type: 'primary',
+                    danger: true
+                },
                 cancelButtonProps: { style: { display: 'none' } }
             });
         } catch (error: any) {
@@ -1407,7 +1426,11 @@ export default function RuleCreatePage() {
                 title: 'Save Failed',
                 content: error.message || 'Failed to save configuration. Please try again.',
                 okText: 'OK',
-                centered: true
+                centered: true,
+                okButtonProps: {
+                    type: 'primary',
+                    danger: true
+                }
             });
         }
     };
@@ -1781,7 +1804,7 @@ export default function RuleCreatePage() {
                                     style={{ transform: `scale(${zoomLevel / 100})` }}
                                 >
                                     {/* Define Input Parameters */}
-                                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 pb-8 mb-6 w-full" style={{ maxWidth: '1100px' }}>
+                                    <div ref={inputParametersCardRef} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 pb-8 mb-6 w-full" style={{ maxWidth: '1100px' }}>
                                         <div className="flex items-start justify-between mb-1">
                                             <div>
                                                 <h2 className="text-lg font-semibold text-gray-900 mb-1">
@@ -2288,17 +2311,22 @@ export default function RuleCreatePage() {
                     <div className="p-6">
                         {rightPanelContent === 'js' && (
                             <div className="relative">
-                                <Button
-                                    onClick={handleCopyJavaScript}
-                                    className="absolute top-2 right-2 z-10 bg-white hover:bg-gray-50 border border-gray-200 rounded-md p-2 flex items-center justify-center"
-                                    style={{ width: '32px', height: '32px', boxShadow: 'none' }}
-                                >
-                                    {isCopied ? (
-                                        <CheckOutlined className="text-gray-500 text-base" />
-                                    ) : (
-                                        <CopyOutlined className="text-gray-500 text-base" />
+                                <div className="absolute top-2 right-2 z-10 flex flex-col items-center">
+                                    <Button
+                                        onClick={handleCopyJavaScript}
+                                        className="bg-white hover:bg-gray-50 border border-gray-200 rounded-md p-2 flex items-center justify-center"
+                                        style={{ width: '32px', height: '32px', boxShadow: 'none' }}
+                                    >
+                                        {isCopied ? (
+                                            <CheckOutlined className="text-gray-500 text-base" />
+                                        ) : (
+                                            <CopyOutlined className="text-gray-500 text-base" />
+                                        )}
+                                    </Button>
+                                    {isCopied && (
+                                        <span className="text-xs text-gray-500 font-normal mt-1">Copied!</span>
                                     )}
-                                </Button>
+                                </div>
                                 <pre className="bg-gray-50 p-4 rounded-lg overflow-auto text-sm pr-16" style={{ maxHeight: 'calc(100vh - 200px)' }}>
                                     <code className="text-gray-800">
                                         {generatedJsCode || '// No code generated yet. Please configure your rule and try again.'}

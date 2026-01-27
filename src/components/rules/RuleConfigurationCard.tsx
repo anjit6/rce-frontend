@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Select } from 'antd';
+import { Select, DatePicker, InputNumber } from 'antd';
+import dayjs from 'dayjs';
 import { ConfigurationStep, InputParameter } from '../../types/rule-configuration';
 import { SUBFUNCTIONS } from '../../constants/subfunctions';
 import { Input } from '../ui/input';
@@ -304,15 +305,53 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                                                             {paramErrors[idx].dataType}
                                                         </span>
                                                     )}
-                                                    <Input
-                                                        value={paramConfig.value || ''}
-                                                        onChange={(e) => handleParamValueChange(idx, e.target.value)}
-                                                        placeholder="Enter static value"
-                                                        className="w-full"
-                                                        inputSize="lg"
-                                                        variant={shouldShowValidation && paramErrors[idx]?.value ? 'error' : 'default'}
-                                                        disabled={isViewMode}
-                                                    />
+                                                    {/* Render input based on selected data type */}
+                                                    {paramConfig.dataType === 'DATE' ? (
+                                                        <DatePicker
+                                                            value={paramConfig.value ? dayjs(paramConfig.value) : null}
+                                                            onChange={(date) => handleParamValueChange(idx, date ? date.format('YYYY-MM-DD') : '')}
+                                                            placeholder="Select date"
+                                                            className="w-full"
+                                                            size="large"
+                                                            status={shouldShowValidation && paramErrors[idx]?.value ? 'error' : undefined}
+                                                            disabled={isViewMode}
+                                                        />
+                                                    ) : paramConfig.dataType === 'NUMBER' ? (
+                                                        <InputNumber
+                                                            value={paramConfig.value ? Number(paramConfig.value) : null}
+                                                            onChange={(value) => handleParamValueChange(idx, value !== null ? String(value) : '')}
+                                                            placeholder="Enter number"
+                                                            className="w-full"
+                                                            size="large"
+                                                            status={shouldShowValidation && paramErrors[idx]?.value ? 'error' : undefined}
+                                                            disabled={isViewMode}
+                                                            style={{ width: '100%' }}
+                                                        />
+                                                    ) : paramConfig.dataType === 'BOOLEAN' ? (
+                                                        <Select
+                                                            value={paramConfig.value || undefined}
+                                                            onChange={(value) => handleParamValueChange(idx, value)}
+                                                            placeholder="Select boolean value"
+                                                            className="w-full"
+                                                            size="large"
+                                                            status={shouldShowValidation && paramErrors[idx]?.value ? 'error' : undefined}
+                                                            options={[
+                                                                { label: 'True', value: 'true' },
+                                                                { label: 'False', value: 'false' }
+                                                            ]}
+                                                            disabled={isViewMode}
+                                                        />
+                                                    ) : (
+                                                        <Input
+                                                            value={paramConfig.value || ''}
+                                                            onChange={(e) => handleParamValueChange(idx, e.target.value)}
+                                                            placeholder="Enter static value"
+                                                            className="w-full"
+                                                            inputSize="lg"
+                                                            variant={shouldShowValidation && paramErrors[idx]?.value ? 'error' : 'default'}
+                                                            disabled={isViewMode}
+                                                        />
+                                                    )}
                                                     {shouldShowValidation && paramErrors[idx]?.value && (
                                                         <span className="text-red-500 text-xs block">
                                                             {paramErrors[idx].value}
