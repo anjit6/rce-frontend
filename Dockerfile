@@ -6,17 +6,18 @@ WORKDIR /app
 
 # Accept build arguments
 ARG VITE_API_URL
-ARG NODE_ENV=production
 
 # Set environment variables for build
 ENV VITE_API_URL=$VITE_API_URL
-ENV NODE_ENV=$NODE_ENV
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
+# Install all dependencies (including devDependencies for build tools)
 RUN npm install
+
+# Set NODE_ENV after installing dependencies
+ENV NODE_ENV=production
 
 # Copy application files
 COPY . .
