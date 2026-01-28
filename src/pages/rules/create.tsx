@@ -2041,10 +2041,9 @@ export default function RuleCreatePage() {
                             Save
                         </Button>
                         <Button
-                            type="primary"
                             size="large"
                             onClick={handleSaveVersion}
-                            className="bg-blue-500 hover:bg-blue-400 focus:bg-blue-400 border-none"
+                            className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
                         >
                             Save Version
                         </Button>
