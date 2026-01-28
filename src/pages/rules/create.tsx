@@ -266,22 +266,46 @@ export default function RuleCreatePage() {
                                             id: apiStep.id,
                                             type: 'conditional' as const,
                                             config: {
-                                                conditions: apiStep.conditions?.map((cond: any) => ({
-                                                    id: cond.id || String(Date.now() + Math.random()),
-                                                    sequence: cond.sequence,
-                                                    andOr: cond.and_or,
-                                                    lhs: {
-                                                        type: cond.lhs_type,
-                                                        dataType: cond.lhs_data_type,
-                                                        value: cond.lhs_value
-                                                    },
-                                                    operator: cond.operator,
-                                                    rhs: {
-                                                        type: cond.rhs_type,
-                                                        dataType: cond.rhs_data_type,
-                                                        value: cond.rhs_value
-                                                    }
-                                                })) || [],
+                                                conditions: apiStep.conditions?.map((cond: any) => {
+                                                    // Helper function to convert API condition data to UI format
+                                                    const convertConditionSide = (sideType: string, sideValue: string, sideDataType: string) => {
+                                                        if (sideType === 'inputParam') {
+                                                            // Map inputParam to the actual parameter name for UI display
+                                                            const matchingInputParam = inputParams.find(ip => ip.fieldName === sideValue);
+                                                            return {
+                                                                type: matchingInputParam?.name || sideValue,
+                                                                dataType: sideDataType,
+                                                                value: sideValue
+                                                            };
+                                                        } else if (sideType === 'stepOutputVariable') {
+                                                            return {
+                                                                type: sideValue,
+                                                                dataType: sideDataType,
+                                                                value: sideValue
+                                                            };
+                                                        } else if (sideType === 'static') {
+                                                            return {
+                                                                type: 'Static Value',
+                                                                dataType: sideDataType,
+                                                                value: sideValue
+                                                            };
+                                                        }
+                                                        return {
+                                                            type: sideType,
+                                                            dataType: sideDataType,
+                                                            value: sideValue
+                                                        };
+                                                    };
+
+                                                    return {
+                                                        id: cond.id || String(Date.now() + Math.random()),
+                                                        sequence: cond.sequence,
+                                                        andOr: cond.and_or,
+                                                        lhs: convertConditionSide(cond.lhs_type, cond.lhs_value, cond.lhs_data_type),
+                                                        operator: cond.operator,
+                                                        rhs: convertConditionSide(cond.rhs_type, cond.rhs_value, cond.rhs_data_type)
+                                                    };
+                                                }) || [],
                                                 next: {
                                                     true: [],
                                                     false: []
@@ -311,13 +335,13 @@ export default function RuleCreatePage() {
                                             id: apiStep.id,
                                             type: 'output' as const,
                                             config: {
-                                                responseType: 'success',
+                                                responseType: outputData?.response_type || 'success',
                                                 type: outputData?.data_type || 'static',
                                                 dataType: dataType,
                                                 value: uiValue,
                                                 staticValue: staticValue,
-                                                errorMessage: '',
-                                                errorCode: ''
+                                                errorMessage: outputData?.error_message || '',
+                                                errorCode: outputData?.error_code || ''
                                             }
                                         };
                                     }
@@ -1041,20 +1065,24 @@ export default function RuleCreatePage() {
                                 value: data.value || '',
                                 dataType: data.dataType || 'String'
                             };
-                        } else if (data.type?.startsWith('Input Parameter')) {
-                            const matchedParam = inputParameters.find(p => p.name === data.type);
+                        }
+
+                        // Check if the type matches an input parameter by name
+                        const matchedParam = inputParameters.find(p => p.name === data.type);
+                        if (matchedParam) {
                             return {
                                 type: 'inputParam',
-                                value: matchedParam?.fieldName || '',
-                                dataType: data.dataType || 'String'
-                            };
-                        } else {
-                            return {
-                                type: 'stepOutputVariable',
-                                value: data.type || data.value || '',
+                                value: matchedParam.fieldName || '',
                                 dataType: data.dataType || 'String'
                             };
                         }
+
+                        // Otherwise treat as step output variable
+                        return {
+                            type: 'stepOutputVariable',
+                            value: data.type || data.value || '',
+                            dataType: data.dataType || 'String'
+                        };
                     };
 
                     return {
@@ -1276,7 +1304,10 @@ export default function RuleCreatePage() {
                         output_data: step.data ? {
                             data_type: step.data.type,
                             data_value_type: step.data.dataType,
-                            data_value: step.data.value || ''
+                            data_value: step.data.value || '',
+                            response_type: step.data.responseType || 'success',
+                            error_message: step.data.errorMessage || '',
+                            error_code: step.data.errorCode || ''
                         } : undefined
                     };
                 })

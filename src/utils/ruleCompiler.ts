@@ -119,6 +119,15 @@ export function compileRule(rule: Rule): string {
         steps = rule.steps || [];
     }
 
+    // Normalize API format: convert next_step to next
+    steps = steps.map(step => {
+        const normalizedStep = { ...step };
+        if ((step as any).next_step && !step.next) {
+            normalizedStep.next = (step as any).next_step;
+        }
+        return normalizedStep;
+    });
+
     const functionName = `rule_${id}`;
 
     let code = `/**\n * Generated Rule Function\n * ID: ${id}\n * Name: ${name}\n */\n`;
@@ -173,7 +182,24 @@ export function compileRule(rule: Rule): string {
     // 3. Execution Loop
     code += `        // 3. Execution Loop\n`;
     if (steps.length > 0) {
-        code += `        let stepId = "${steps[0].id}";\n`;
+        // Find the starting step - it's the step that is not referenced by any other step's next
+        const referencedSteps = new Set<string>();
+        steps.forEach(step => {
+            if (typeof step.next === 'string' && step.next) {
+                referencedSteps.add(step.next);
+            } else if (step.next && typeof step.next === 'object') {
+                const nextObj = step.next as Record<string, string | null>;
+                Object.values(nextObj).forEach(nextId => {
+                    if (nextId) referencedSteps.add(nextId);
+                });
+            }
+        });
+
+        // The starting step is one that's not referenced by any other step
+        const startingStep = steps.find(step => !referencedSteps.has(step.id));
+        const startingStepId = startingStep ? startingStep.id : steps[0].id;
+
+        code += `        let stepId = "${startingStepId}";\n`;
         code += `        while (stepId) {\n`;
         code += `            switch (stepId) {\n`;
 
@@ -259,17 +285,38 @@ function generateStepLogic(step: RuleStep): string {
                 });
             }
         }
-        return `                    ${outputVariableName} = ${subFuncName}(${args.join(', ')}).value;\n`;
+        // Generate code that checks success before accessing .value
+        return `                    const ${outputVariableName}_result = ${subFuncName}(${args.join(', ')});\n` +
+               `                    if (!${outputVariableName}_result.success) {\n` +
+               `                        return ${outputVariableName}_result;\n` +
+               `                    }\n` +
+               `                    ${outputVariableName} = ${outputVariableName}_result.value;\n`;
     }
 
-    if (step.type === 'output' && step.data) {
-        const responseType = step.data.responseType || 'success';
+    if (step.type === 'output') {
+        // Handle both formats: step.data (object format) or step.output_data (API format)
+        const outputData = step.data || (step as any).output_data;
+
+        if (!outputData) {
+            return `                    return { success: false, error: { code: 500, message: "Output step missing data" } };\n`;
+        }
+
+        // Transform API format to expected format if needed
+        const stepData = outputData.data_type ? {
+            type: outputData.data_type,
+            value: outputData.data_value,
+            dataType: outputData.data_value_type,
+            responseType: outputData.response_type || 'success',
+            errorMessage: outputData.error_message || ''
+        } : outputData;
+
+        const responseType = stepData.responseType || 'success';
 
         if (responseType === 'error') {
-            const errorMessage = step.data.errorMessage ? JSON.stringify(step.data.errorMessage) : '""';
+            const errorMessage = stepData.errorMessage ? JSON.stringify(stepData.errorMessage) : '""';
             return `                    return {\n                        success: false,\n                        error: {\n                            code: 400,\n                            message: ${errorMessage},\n                            isUserError: true\n                        }\n                    };\n`;
         } else {
-            const outputVal = resolveValue(step.data);
+            const outputVal = resolveValue(stepData);
             return `                    return {\n                        success: true,\n                        value: ${outputVal}\n                    };\n`;
         }
     }
@@ -279,20 +326,46 @@ function generateStepLogic(step: RuleStep): string {
         const conditions = (step as any).conditions;
 
         if (conditions && Array.isArray(conditions) && conditions.length > 0) {
-            const cond = conditions[0];
-            const lhs = resolveValue(cond.lhs);
-            const rhs = resolveValue(cond.rhs);
-            const op = cond.operator;
+            // Handle all conditions, not just the first one
+            const conditionExpressions: string[] = [];
 
-            logic += `                    // Condition: ${lhs} ${op} ${rhs}\n`;
+            conditions.forEach((cond: any, index: number) => {
+                // Handle both API format (lhs_type/lhs_value) and object format (lhs: {type, value})
+                const lhsData = cond.lhs || { type: cond.lhs_type, value: cond.lhs_value, dataType: cond.lhs_data_type };
+                const rhsData = cond.rhs || { type: cond.rhs_type, value: cond.rhs_value, dataType: cond.rhs_data_type };
 
-            if (op === 'equals') {
-                logic += `                    if (${lhs} == ${rhs}) {\n`;
-            } else if (op === 'OR') {
-                logic += `                    if ([${rhs}].flat().includes(${lhs})) {\n`;
-            } else {
-                logic += `                    if (${lhs} == ${rhs}) {\n`;
-            }
+                const lhs = resolveValue(lhsData);
+                const rhs = resolveValue(rhsData);
+                const op = cond.operator;
+
+                logic += `                    // Condition ${index + 1}: ${lhs} ${op} ${rhs}\n`;
+
+                let condExpr: string;
+                if (op === 'equals') {
+                    condExpr = `(${lhs} == ${rhs})`;
+                } else if (op === 'OR') {
+                    condExpr = `([${rhs}].flat().includes(${lhs}))`;
+                } else if (op === 'not_equals') {
+                    condExpr = `(${lhs} != ${rhs})`;
+                } else if (op === 'greater_than') {
+                    condExpr = `(${lhs} > ${rhs})`;
+                } else if (op === 'less_than') {
+                    condExpr = `(${lhs} < ${rhs})`;
+                } else if (op === 'greater_than_or_equal') {
+                    condExpr = `(${lhs} >= ${rhs})`;
+                } else if (op === 'less_than_or_equal') {
+                    condExpr = `(${lhs} <= ${rhs})`;
+                } else {
+                    // Default to equals for unknown operators
+                    condExpr = `(${lhs} == ${rhs})`;
+                }
+
+                conditionExpressions.push(condExpr);
+            });
+
+            // Combine all conditions with AND logic (all must be true)
+            const combinedCondition = conditionExpressions.join(' && ');
+            logic += `                    if (${combinedCondition}) {\n`;
         } else {
             logic += `                    if (true) {\n`;
         }
@@ -300,9 +373,27 @@ function generateStepLogic(step: RuleStep): string {
         if (step.next && typeof step.next === 'object') {
             const trueStep = (step.next as any)['true'];
             const falseStep = (step.next as any)['false'];
-            logic += `                        stepId = "${trueStep}";\n`;
+
+            // Add null safety checks for branch steps
+            if (trueStep !== undefined && trueStep !== null) {
+                logic += `                        stepId = "${trueStep}";\n`;
+            } else {
+                logic += `                        stepId = null; // No true branch defined\n`;
+            }
+
             logic += `                    } else {\n`;
-            logic += `                        stepId = "${falseStep}";\n`;
+
+            if (falseStep !== undefined && falseStep !== null) {
+                logic += `                        stepId = "${falseStep}";\n`;
+            } else {
+                logic += `                        stepId = null; // No false branch defined\n`;
+            }
+
+            logic += `                    }\n`;
+            logic += `                    break;\n`;
+        } else {
+            // Missing step.next structure - add error handling
+            logic += `                        return { success: false, error: { code: 500, message: "Condition step ${step.id} missing next branches" } };\n`;
             logic += `                    }\n`;
             logic += `                    break;\n`;
         }

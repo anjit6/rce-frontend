@@ -1,11 +1,11 @@
 // Type definitions for subfunctions
 
 // Support both uppercase (legacy) and proper case data types
-export type DataType = 
-  | 'STRING' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'ANY'
+export type DataType =
+  | 'STRING' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'ANY' | 'ARRAY'
   | 'String' | 'Number' | 'Boolean' | 'Date';
 
-export type CategoryId = 'STR' | 'NUM' | 'DATE' | 'UTIL';
+export type CategoryId = 'STR' | 'NUM' | 'DATE' | 'UTIL' | 'ARR' | 'CONV';
 
 export interface InputParam {
   name: string;

@@ -434,7 +434,7 @@ export default function ConditionalCard({
                                     <Label className="text-sm font-medium text-gray-900">Operator </Label>
                                     <Select
                                         showSearch
-                                        value={undefined}
+                                        value={condition.operator || undefined}
                                         onChange={(value) => handleConditionChange(index, 'operator', value)}
                                         placeholder="Select Condition"
                                         className="w-full"

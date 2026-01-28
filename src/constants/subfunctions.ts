@@ -871,6 +871,131 @@ export const SUBFUNCTIONS: Subfunction[] = [
       { name: "value", label: "Value", dataType: "BOOLEAN", mandatory: true, sequence: 1 }
     ],
     returnType: "BOOLEAN"
+  },
+
+  // ARRAY FUNCTIONS
+  {
+    id: 6001,
+    name: "Get Array Element",
+    description: "Gets element at specific index from array.",
+    version: "v1.0",
+    functionName: "ARRAY_GET",
+    categoryId: "ARR",
+    code: "function ARRAY_GET(array, index){ try { if(!Array.isArray(array)) return { success:false, error:{code:400,message:'array must be of type Array'}}; if(typeof index !== 'number' || isNaN(index)) return { success:false, error:{code:400,message:'index must be of type Number'}}; const idx = Number(index); if(idx < 0 || idx >= array.length) return { success:false, error:{code:400,message:'Index out of bounds'}}; return { success:true, value:array[idx] }; } catch(e){ return {success:false,error:{code:500,message:e.message}};} }",
+    inputParams: [
+      { name: "array", label: "Array", dataType: "ARRAY", mandatory: true, sequence: 1 },
+      { name: "index", label: "Index", dataType: "NUMBER", mandatory: true, sequence: 2 }
+    ],
+    returnType: "ANY"
+  },
+  {
+    id: 6002,
+    name: "Array Length",
+    description: "Returns the number of elements in an array.",
+    version: "v1.0",
+    functionName: "ARRAY_LENGTH",
+    categoryId: "ARR",
+    code: "function ARRAY_LENGTH(array){ try { if(!Array.isArray(array)) return { success:false, error:{code:400,message:'array must be of type Array'}}; return { success:true, value:array.length }; } catch(e){ return {success:false,error:{code:500,message:e.message}};} }",
+    inputParams: [
+      { name: "array", label: "Array", dataType: "ARRAY", mandatory: true, sequence: 1 }
+    ],
+    returnType: "NUMBER"
+  },
+  {
+    id: 6003,
+    name: "Join Array",
+    description: "Joins array elements into a string with separator.",
+    version: "v1.0",
+    functionName: "ARRAY_JOIN",
+    categoryId: "ARR",
+    code: "function ARRAY_JOIN(array, separator){ try { if(!Array.isArray(array)) return { success:false, error:{code:400,message:'array must be of type Array'}}; if(typeof separator !== 'string') return { success:false, error:{code:400,message:'separator must be of type String'}}; return { success:true, value:array.join(separator) }; } catch(e){ return {success:false,error:{code:500,message:e.message}};} }",
+    inputParams: [
+      { name: "array", label: "Array", dataType: "ARRAY", mandatory: true, sequence: 1 },
+      { name: "separator", label: "Separator", dataType: "STRING", mandatory: true, sequence: 2 }
+    ],
+    returnType: "STRING"
+  },
+  {
+    id: 6004,
+    name: "First Element",
+    description: "Gets the first element of an array.",
+    version: "v1.0",
+    functionName: "ARRAY_FIRST",
+    categoryId: "ARR",
+    code: "function ARRAY_FIRST(array){ try { if(!Array.isArray(array)) return { success:false, error:{code:400,message:'array must be of type Array'}}; if(array.length === 0) return { success:false, error:{code:400,message:'Array is empty'}}; return { success:true, value:array[0] }; } catch(e){ return {success:false,error:{code:500,message:e.message}};} }",
+    inputParams: [
+      { name: "array", label: "Array", dataType: "ARRAY", mandatory: true, sequence: 1 }
+    ],
+    returnType: "ANY"
+  },
+  {
+    id: 6005,
+    name: "Last Element",
+    description: "Gets the last element of an array.",
+    version: "v1.0",
+    functionName: "ARRAY_LAST",
+    categoryId: "ARR",
+    code: "function ARRAY_LAST(array){ try { if(!Array.isArray(array)) return { success:false, error:{code:400,message:'array must be of type Array'}}; if(array.length === 0) return { success:false, error:{code:400,message:'Array is empty'}}; return { success:true, value:array[array.length - 1] }; } catch(e){ return {success:false,error:{code:500,message:e.message}};} }",
+    inputParams: [
+      { name: "array", label: "Array", dataType: "ARRAY", mandatory: true, sequence: 1 }
+    ],
+    returnType: "ANY"
+  },
+
+  // CONVERSION FUNCTIONS (for future rules)
+  {
+    id: 7001,
+    name: "Decimal to Binary",
+    description: "Converts decimal number to binary string with optional padding.",
+    version: "v1.0",
+    functionName: "NUM_TO_BINARY",
+    categoryId: "CONV",
+    code: "function NUM_TO_BINARY(num, padLength){ try { if(typeof num !== 'number' || isNaN(num)) return { success:false, error:{code:400,message:'num must be of type Number'}}; if(padLength !== undefined && padLength !== null && (typeof padLength !== 'number' || isNaN(padLength))) return { success:false, error:{code:400,message:'padLength must be of type Number'}}; let binary = Math.abs(Math.floor(Number(num))).toString(2); if(padLength) binary = binary.padStart(Number(padLength), '0'); return { success:true, value:binary }; } catch(e){ return {success:false,error:{code:500,message:e.message}};} }",
+    inputParams: [
+      { name: "num", label: "Number", dataType: "NUMBER", mandatory: true, sequence: 1 },
+      { name: "padLength", label: "Pad Length", dataType: "NUMBER", mandatory: false, sequence: 2 }
+    ],
+    returnType: "STRING"
+  },
+  {
+    id: 7002,
+    name: "Binary to Decimal",
+    description: "Converts binary string to decimal number.",
+    version: "v1.0",
+    functionName: "BINARY_TO_NUM",
+    categoryId: "CONV",
+    code: "function BINARY_TO_NUM(binary){ try { if(typeof binary !== 'string') return { success:false, error:{code:400,message:'binary must be of type String'}}; const num = parseInt(binary, 2); if(isNaN(num)) return { success:false, error:{code:400,message:'Invalid binary string'}}; return { success:true, value:num }; } catch(e){ return {success:false,error:{code:500,message:e.message}};} }",
+    inputParams: [
+      { name: "binary", label: "Binary String", dataType: "STRING", mandatory: true, sequence: 1 }
+    ],
+    returnType: "NUMBER"
+  },
+  {
+    id: 7003,
+    name: "Format Number with Separator",
+    description: "Formats number with thousand separator (e.g., 557000 → 557.000).",
+    version: "v1.0",
+    functionName: "NUM_FORMAT_SEPARATOR",
+    categoryId: "CONV",
+    code: "function NUM_FORMAT_SEPARATOR(num, separator){ try { if(typeof num !== 'number' && typeof num !== 'string') return { success:false, error:{code:400,message:'num must be Number or String'}}; if(typeof separator !== 'string') return { success:false, error:{code:400,message:'separator must be of type String'}}; const numStr = String(num).replace(/[^0-9]/g, ''); const formatted = numStr.replace(/\\B(?=(\\d{3})+(?!\\d))/g, separator); return { success:true, value:formatted }; } catch(e){ return {success:false,error:{code:500,message:e.message}};} }",
+    inputParams: [
+      { name: "num", label: "Number", dataType: "ANY", mandatory: true, sequence: 1 },
+      { name: "separator", label: "Separator", dataType: "STRING", mandatory: true, sequence: 2 }
+    ],
+    returnType: "STRING"
+  },
+  {
+    id: 7004,
+    name: "Calculate Check Digit (Mod 10)",
+    description: "Calculates check digit using GS1/EAN Mod 10 algorithm.",
+    version: "v1.0",
+    functionName: "CALC_CHECK_DIGIT_MOD10",
+    categoryId: "CONV",
+    code: "function CALC_CHECK_DIGIT_MOD10(digits){ try { if(typeof digits !== 'string') return { success:false, error:{code:400,message:'digits must be of type String'}}; const digitsStr = String(digits).replace(/[^0-9]/g, ''); let sum = 0; for(let i = digitsStr.length - 1; i >= 0; i--){ let digit = parseInt(digitsStr[i]); if((digitsStr.length - 1 - i) % 2 === 0) digit *= 3; sum += digit; } const checkDigit = (10 - (sum % 10)) % 10; return { success:true, value:checkDigit }; } catch(e){ return {success:false,error:{code:500,message:e.message}};} }",
+    inputParams: [
+      { name: "digits", label: "Digits", dataType: "STRING", mandatory: true, sequence: 1 }
+    ],
+    returnType: "NUMBER"
   }
 ];
 
@@ -897,5 +1022,15 @@ export const CATEGORIES: Category[] = [
     id: "UTIL",
     name: "Utility Functions",
     description: "General utility and helper functions"
+  },
+  {
+    id: "ARR",
+    name: "Array Functions",
+    description: "Functions for array manipulation and operations"
+  },
+  {
+    id: "CONV",
+    name: "Conversion Functions",
+    description: "Functions for data type conversions and formatting"
   }
 ];
