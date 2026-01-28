@@ -11,6 +11,8 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { compileRule } from '../../utils/ruleCompiler';
 import { assignStepIds } from '../../utils/stepIdGenerator';
+import { useAuth } from '../../context/AuthContext';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { Panel } = Collapse;
 const { confirm } = Modal;
@@ -111,6 +113,7 @@ export default function RuleCreatePage() {
     const { ruleId } = useParams<{ ruleId: string }>();
     const navigate = useNavigate();
     const location = useLocation();
+    const { hasPermission, hasAnyPermission } = useAuth();
     const [rule, setRule] = useState<any>(null);
     const [isViewMode, setIsViewMode] = useState(false); // Default to edit mode
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
@@ -187,6 +190,14 @@ export default function RuleCreatePage() {
 
                     setRule(completeRuleData.rule);
                     document.title = `${completeRuleData.rule.name} - RCE`;
+
+                    // Check permissions and set view mode
+                    const canEdit = hasAnyPermission([PERMISSIONS.CREATE_RULE, PERMISSIONS.EDIT_RULE]);
+                    const canOnlyView = hasPermission(PERMISSIONS.VIEW_RULE) && !canEdit;
+                    
+                    if (canOnlyView) {
+                        setIsViewMode(true);
+                    }
 
                     // Check if rule function exists and has data
                     if (completeRuleData.rule_function && completeRuleData.rule_function.id > 0) {
@@ -414,18 +425,6 @@ export default function RuleCreatePage() {
                             };
 
                             const convertedSteps = buildNestedSteps(completeRuleData.steps, inputParameters);
-
-                            // Debug logging for structure verification
-                            console.log("📊 API Steps Count:", completeRuleData.steps.length);
-                            console.log("🌳 Root-level Converted Steps:", convertedSteps.length);
-                            console.log("🔍 Structure Preview:", JSON.stringify(convertedSteps.map(s => ({
-                                id: s.id,
-                                type: s.type,
-                                stepId: s.stepId,
-                                hasConditionalBranches: s.type === 'conditional' && s.config?.next,
-                                trueBranchCount: s.type === 'conditional' ? (s.config?.next?.true?.length || 0) : 0,
-                                falseBranchCount: s.type === 'conditional' ? (s.config?.next?.false?.length || 0) : 0
-                            })), null, 2));
 
                             updateConfigurationSteps(convertedSteps);
                             setShowConfiguration(true);
@@ -1234,12 +1233,10 @@ export default function RuleCreatePage() {
         };
 
         // Generate JavaScript code from the rule function
-        console.log("🔄 Regenerating JavaScript code...");
         try {
             const compiledCode = compileRule(ruleFunction as any);
             ruleFunction.code = compiledCode;
             setGeneratedJsCode(compiledCode);
-            console.log("✅ JavaScript code generated successfully");
         } catch (error) {
             console.error('Failed to compile rule during save:', error);
             Modal.error({
@@ -1471,7 +1468,6 @@ export default function RuleCreatePage() {
         if (rule && configurationSteps.length > 0) {
             // Check if we already have generated code and no unsaved changes
             if (generatedJsCode && !hasUnsavedChanges) {
-                console.log("✅ Using existing generated code for testing");
 
                 // Initialize test inputs with empty values
                 const initialInputs: Record<string, any> = {};
@@ -1486,7 +1482,6 @@ export default function RuleCreatePage() {
             }
 
             // Generate JavaScript code if not available or changes were made
-            console.log("🔄 Generating new JavaScript code for testing");
             const ruleFunction = {
                 id: Date.now(),
                 code: "",
@@ -1668,52 +1663,64 @@ export default function RuleCreatePage() {
                             <div className="flex gap-3 ml-6 flex-shrink-0">
                                 {isViewMode ? (
                                     <>
-                                        <Button
-                                            size="large"
-                                            type="primary"
-                                            onClick={handleEditRule}
-                                            className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none"
-                                        >
-                                            Edit Rule
-                                        </Button>
-                                        <Button
-                                            size="large"
-                                            onClick={handleGenerateJavaScript}
-                                            className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                                        >
-                                            Show JS Code
-                                        </Button>
-                                        <Button
-                                            size="large"
-                                            onClick={handleTestRule}
-                                            className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                                        >
-                                            Test Rule
-                                        </Button>
+                                        {hasAnyPermission([PERMISSIONS.CREATE_RULE, PERMISSIONS.EDIT_RULE]) && (
+                                            <Button
+                                                size="large"
+                                                type="primary"
+                                                onClick={handleEditRule}
+                                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none"
+                                            >
+                                                Edit Rule
+                                            </Button>
+                                        )}
+                                        {hasAnyPermission([PERMISSIONS.CREATE_RULE, PERMISSIONS.EDIT_RULE, PERMISSIONS.VIEW_RULE]) && (
+                                            <Button
+                                                size="large"
+                                                onClick={handleGenerateJavaScript}
+                                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                            >
+                                                Show JS Code
+                                            </Button>
+                                        )}
+                                        {hasPermission(PERMISSIONS.TEST_RULE) && (
+                                            <Button
+                                                size="large"
+                                                onClick={handleTestRule}
+                                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                            >
+                                                Test Rule
+                                            </Button>
+                                        )}
                                     </>
                                 ) : (
                                     <>
-                                        <Button
-                                            size="large"
-                                            onClick={handleClearRule}
-                                            className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                                        >
-                                            Clear Rule
-                                        </Button>
-                                        <Button
-                                            size="large"
-                                            onClick={handleGenerateJavaScript}
-                                            className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                                        >
-                                            Show JS Code
-                                        </Button>
-                                        <Button
-                                            size="large"
-                                            onClick={handleTestRule}
-                                            className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                                        >
-                                            Test Rule
-                                        </Button>
+                                        {hasAnyPermission([PERMISSIONS.CREATE_RULE, PERMISSIONS.EDIT_RULE]) && (
+                                            <Button
+                                                size="large"
+                                                onClick={handleClearRule}
+                                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                            >
+                                                Clear Rule
+                                            </Button>
+                                        )}
+                                        {hasAnyPermission([PERMISSIONS.CREATE_RULE, PERMISSIONS.EDIT_RULE]) && (
+                                            <Button
+                                                size="large"
+                                                onClick={handleGenerateJavaScript}
+                                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                            >
+                                                Show JS Code
+                                            </Button>
+                                        )}
+                                        {hasPermission(PERMISSIONS.TEST_RULE) && (
+                                            <Button
+                                                size="large"
+                                                onClick={handleTestRule}
+                                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                                            >
+                                                Test Rule
+                                            </Button>
+                                        )}
                                     </>
                                 )}
                             </div>
@@ -1727,20 +1734,22 @@ export default function RuleCreatePage() {
                     {(!showConfiguration || (isViewMode && configurationSteps.length === 0)) && (
                         <div className="flex flex-col items-center justify-center py-20 px-8">
                             <p className="text-lg text-gray-900 mb-6">Click configure to start building your rule</p>
-                            <Button
-                                type="primary"
-                                size="large"
-                                onClick={() => {
-                                    setShowConfiguration(true);
-                                    // If in view mode and no configuration steps exist, switch to edit mode
-                                    if (isViewMode && configurationSteps.length === 0) {
-                                        setIsViewMode(false);
-                                    }
-                                }}
-                                className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none rounded-lg px-8"
-                            >
-                                Configure
-                            </Button>
+                            {hasAnyPermission([PERMISSIONS.CREATE_RULE, PERMISSIONS.EDIT_RULE]) && (
+                                <Button
+                                    type="primary"
+                                    size="large"
+                                    onClick={() => {
+                                        setShowConfiguration(true);
+                                        // If in view mode and no configuration steps exist, switch to edit mode
+                                        if (isViewMode && configurationSteps.length === 0) {
+                                            setIsViewMode(false);
+                                        }
+                                    }}
+                                    className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none rounded-lg px-8"
+                                >
+                                    Configure
+                                </Button>
+                            )}
                         </div>
                     )}
 
@@ -2061,7 +2070,7 @@ export default function RuleCreatePage() {
                 </div>
 
                 {/* Action Buttons Card - Fixed at bottom */}
-                {!isViewMode && showConfiguration && (
+                {!isViewMode && showConfiguration && hasAnyPermission([PERMISSIONS.CREATE_RULE, PERMISSIONS.EDIT_RULE]) && (
                     <div className="flex-shrink-0 z-10 bg-white py-4 flex justify-center gap-3">
                         <Button
                             type="primary"
@@ -2071,13 +2080,15 @@ export default function RuleCreatePage() {
                         >
                             Save
                         </Button>
-                        <Button
-                            size="large"
-                            onClick={handleSaveVersion}
-                            className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
-                        >
-                            Save Version
-                        </Button>
+                        {hasPermission(PERMISSIONS.SAVE_VERSION) && (
+                            <Button
+                                size="large"
+                                onClick={handleSaveVersion}
+                                className="hover:border-red-400 hover:text-red-500 focus:border-red-400 focus:text-red-500"
+                            >
+                                Save Version
+                            </Button>
+                        )}
                         <Button
                             size="large"
                             onClick={() => navigate('/rules')}
@@ -2319,12 +2330,42 @@ export default function RuleCreatePage() {
                                             <Label className="text-sm font-medium text-gray-700 mb-2 block">
                                                 {param.fieldName || param.name}
                                             </Label>
-                                            <Input
-                                                value={testInputs[param.fieldName] || ''}
-                                                onChange={(e) => handleTestInputChange(param.fieldName, e.target.value)}
-                                                placeholder={`Enter ${param.fieldName || param.name}`}
-                                                inputSize="lg"
-                                            />
+                                            {param.dataType === 'Boolean' ? (
+                                                <Select
+                                                    value={testInputs[param.fieldName]}
+                                                    onChange={(value) => handleTestInputChange(param.fieldName, value)}
+                                                    placeholder={`Select ${param.fieldName || param.name}`}
+                                                    className="w-full"
+                                                    size="large"
+                                                    options={[
+                                                        { label: 'True', value: true },
+                                                        { label: 'False', value: false }
+                                                    ]}
+                                                />
+                                            ) : param.dataType === 'Number' ? (
+                                                <Input
+                                                    type="number"
+                                                    value={testInputs[param.fieldName] || 0}
+                                                    onChange={(e) => handleTestInputChange(param.fieldName, e.target.value ? parseFloat(e.target.value) : 0)}
+                                                    placeholder={`Enter ${param.fieldName || param.name}`}
+                                                    inputSize="lg"
+                                                />
+                                            ) : param.dataType === 'Date' ? (
+                                                <Input
+                                                    type="date"
+                                                    value={testInputs[param.fieldName] || ''}
+                                                    onChange={(e) => handleTestInputChange(param.fieldName, e.target.value)}
+                                                    placeholder={`Select ${param.fieldName || param.name}`}
+                                                    inputSize="lg"
+                                                />
+                                            ) : (
+                                                <Input
+                                                    value={testInputs[param.fieldName] || ''}
+                                                    onChange={(e) => handleTestInputChange(param.fieldName, e.target.value)}
+                                                    placeholder={`Enter ${param.fieldName || param.name}`}
+                                                    inputSize="lg"
+                                                />
+                                            )}
                                         </div>
                                     ))
                                 )}

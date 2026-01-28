@@ -260,8 +260,13 @@ export default function ApprovalsPage() {
                   </Button>
                 </Dropdown>
 
-                {/* New Request Button - only shown if user has CREATE_APPROVAL_REQUEST permission */}
-                <PermissionGate permissions={[PERMISSIONS.CREATE_APPROVAL_REQUEST]}>
+                {/* New Request Button - only shown if user has any create request permission */}
+                <PermissionGate permissions={[
+                  PERMISSIONS.CREATE_APPROVAL_REQUEST,
+                  PERMISSIONS.CREATE_WIP_TO_TEST_REQUEST,
+                  PERMISSIONS.CREATE_TEST_TO_PENDING_REQUEST,
+                  PERMISSIONS.CREATE_PENDING_TO_PROD_REQUEST,
+                ]} requireAll={false}>
                   <Button
                     type="primary"
                     icon={<PlusOutlined />}

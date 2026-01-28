@@ -26,11 +26,13 @@ export interface RuleApproval {
   to_stage: RuleStatus;
   moved_to_stage: RuleStatus | null;
   requested_by: string;
+  requested_by_name?: string; // User's full name from users table
   requested_at: string;
   request_comment: string | null;
   status: ApprovalStatus;
   action: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | null;
   action_by: string | null;
+  action_by_name?: string; // User's full name from users table
   action_at: string | null;
   action_comment: string | null;
   version_major?: number;

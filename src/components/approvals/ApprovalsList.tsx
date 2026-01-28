@@ -66,7 +66,7 @@ export default function ApprovalsList({ selectedTab, searchQuery, refreshTrigger
           transition: `${approval.from_stage} → ${approval.to_stage}`,
         },
         version: `${approval.version_major || 0}.${approval.version_minor || 1}`,
-        requestedBy: approval.requested_by,
+        requestedBy: approval.requested_by_name || approval.requested_by,
         requestedAt: new Date(approval.requested_at).toLocaleString('en-US', {
           year: 'numeric',
           month: '2-digit',

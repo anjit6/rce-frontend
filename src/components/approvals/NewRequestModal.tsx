@@ -3,6 +3,8 @@ import { Button, message, Spin } from 'antd';
 import { SearchOutlined, LoadingOutlined, CloseOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import { rulesApi, type ApprovalRequestRule, type RuleStatus } from '../../api/rules.api';
 import { Input } from '../ui/input';
+import { useAuth } from '../../context/AuthContext';
+import { PERMISSIONS, getCreateRequestPermission } from '../../constants/permissions';
 
 interface NewRequestModalProps {
   isOpen: boolean;
@@ -12,6 +14,7 @@ interface NewRequestModalProps {
 }
 
 export default function NewRequestModal({ isOpen, onClose, onSubmit, loading = false }: NewRequestModalProps) {
+  const { hasPermission } = useAuth();
   const [rules, setRules] = useState<ApprovalRequestRule[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRuleId, setSelectedRuleId] = useState<number | null>(null);
@@ -59,6 +62,28 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, loading = f
 
   const handleRuleSelect = (rule: ApprovalRequestRule) => {
     if (!loading) {
+      // Check if user has permission for this rule's stage transition
+      const fromStage = rule.status || 'WIP';
+      let toStage: RuleStatus = 'TEST';
+
+      if (fromStage === 'WIP') {
+        toStage = 'TEST';
+      } else if (fromStage === 'TEST') {
+        toStage = 'PENDING';
+      } else if (fromStage === 'PENDING') {
+        toStage = 'PROD';
+      }
+
+      // Check stage-specific permission first, then fall back to generic permission
+      const stageSpecificPermission = getCreateRequestPermission(fromStage, toStage);
+      const hasStagePermission = stageSpecificPermission ? hasPermission(stageSpecificPermission) : false;
+      const hasGenericPermission = hasPermission(PERMISSIONS.CREATE_APPROVAL_REQUEST);
+
+      if (!hasStagePermission && !hasGenericPermission) {
+        message.warning(`You don't have permission to create ${fromStage} to ${toStage} approval requests`);
+        return;
+      }
+
       setSelectedRuleId(rule.id);
       setSelectedRule(rule);
     }
@@ -88,6 +113,16 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, loading = f
       toStage = 'PROD';
     }
 
+    // Validate user has permission for this stage transition
+    const stageSpecificPermission = getCreateRequestPermission(fromStage, toStage);
+    const hasStagePermission = stageSpecificPermission ? hasPermission(stageSpecificPermission) : false;
+    const hasGenericPermission = hasPermission(PERMISSIONS.CREATE_APPROVAL_REQUEST);
+
+    if (!hasStagePermission && !hasGenericPermission) {
+      message.error(`You don't have permission to create ${fromStage} to ${toStage} approval requests`);
+      return;
+    }
+
     onSubmit(selectedRuleId, selectedRule.name, fromStage, toStage, comments, selectedRule.rule_version_id);
   };
 
@@ -99,6 +134,26 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, loading = f
         setIsClosing(false);
       }, 300); // Match animation duration
     }
+  };
+
+  // Helper to check if user has permission to create request for a rule's stage transition
+  const canCreateRequestForRule = (rule: ApprovalRequestRule): boolean => {
+    const fromStage = rule.status || 'WIP';
+    let toStage: RuleStatus = 'TEST';
+
+    if (fromStage === 'WIP') {
+      toStage = 'TEST';
+    } else if (fromStage === 'TEST') {
+      toStage = 'PENDING';
+    } else if (fromStage === 'PENDING') {
+      toStage = 'PROD';
+    }
+
+    const stageSpecificPermission = getCreateRequestPermission(fromStage, toStage);
+    const hasStagePermission = stageSpecificPermission ? hasPermission(stageSpecificPermission) : false;
+    const hasGenericPermission = hasPermission(PERMISSIONS.CREATE_APPROVAL_REQUEST);
+
+    return hasStagePermission || hasGenericPermission;
   };
 
   const getStatusColor = (status: RuleStatus): string => {
@@ -194,21 +249,28 @@ export default function NewRequestModal({ isOpen, onClose, onSubmit, loading = f
                   </div>
                 ) : (
                   <div>
-                    {rules.map((rule, index) => (
-                      <div
-                        key={rule.id}
-                        className={`px-4 py-3 cursor-pointer transition-all border-l-4 ${selectedRuleId === rule.id
-                          ? 'bg-red-50 border-l-red-500'
-                          : 'hover:bg-gray-50 border-l-transparent'
+                    {rules.map((rule, index) => {
+                      const canCreate = canCreateRequestForRule(rule);
+                      return (
+                        <div
+                          key={rule.id}
+                          className={`px-4 py-3 transition-all border-l-4 ${
+                            selectedRuleId === rule.id
+                              ? 'bg-red-50 border-l-red-500'
+                              : canCreate
+                              ? 'hover:bg-gray-50 border-l-transparent cursor-pointer'
+                              : 'opacity-50 border-l-transparent cursor-not-allowed'
                           } ${index < rules.length - 1 ? 'border-b border-gray-200' : ''}`}
-                        onClick={() => handleRuleSelect(rule)}
-                      >
-                        <div className="font-medium text-gray-900 text-sm">{rule.name}</div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          ID: {rule.id} • Version {rule.version_major}.{rule.version_minor}
+                          onClick={() => canCreate && handleRuleSelect(rule)}
+                          title={!canCreate ? 'You don\'t have permission to create requests for this rule\'s stage' : ''}
+                        >
+                          <div className="font-medium text-gray-900 text-sm">{rule.name}</div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            ID: {rule.id} • Version {rule.version_major}.{rule.version_minor} • Status: {rule.status || '-'}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

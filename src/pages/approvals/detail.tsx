@@ -356,9 +356,9 @@ export default function ApprovalDetailPage() {
                 <h3 className="text-sm font-medium text-gray-500 mb-3">Requested By</h3>
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                    <span className="text-blue-700 font-medium text-lg">{getInitials(approval.requested_by)}</span>
+                    <span className="text-blue-700 font-medium text-lg">{getInitials(approval.requested_by_name || approval.requested_by)}</span>
                   </div>
-                  <span className="text-gray-900 font-medium">{approval.requested_by}</span>
+                  <span className="text-gray-900 font-medium">{approval.requested_by_name || approval.requested_by}</span>
                 </div>
               </div>
 
@@ -398,9 +398,9 @@ export default function ApprovalDetailPage() {
                     </h3>
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                        <span className="text-blue-700 font-medium text-lg">{getInitials(approval.action_by)}</span>
+                        <span className="text-blue-700 font-medium text-lg">{getInitials(approval.action_by_name || approval.action_by)}</span>
                       </div>
-                      <span className="text-gray-900 font-medium">{approval.action_by}</span>
+                      <span className="text-gray-900 font-medium">{approval.action_by_name || approval.action_by}</span>
                     </div>
                   </div>
 
