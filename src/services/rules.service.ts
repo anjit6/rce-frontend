@@ -56,7 +56,8 @@ const convertApiRuleToFrontend = (apiRule: ApiRule, type: RuleType = 'dynamic'):
       major: apiRule.version_major,
       minor: apiRule.version_minor,
     },
-    author: apiRule.author || '',
+    // Use author_name if available, otherwise fall back to author (ID)
+    author: apiRule.author_name || apiRule.author || '',
     createdAt: apiRule.created_at,
     updatedAt: apiRule.updated_at,
     deletedAt: apiRule.deleted_at || '',

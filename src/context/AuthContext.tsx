@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authApi, UserPublic } from '../api/auth.api';
+import { PermissionId } from '../constants/permissions';
 
 interface AuthContextType {
   user: UserPublic | null;
@@ -7,8 +8,9 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  hasPermission: (permission: string) => boolean;
-  hasAnyPermission: (permissions: string[]) => boolean;
+  hasPermission: (permissionId: PermissionId) => boolean;
+  hasAnyPermission: (permissionIds: PermissionId[]) => boolean;
+  hasAllPermissions: (permissionIds: PermissionId[]) => boolean;
   refreshUser: () => Promise<void>;
 }
 
@@ -63,13 +65,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(null);
   };
 
-  const hasPermission = (permission: string): boolean => {
-    return user?.permissions?.includes(permission) || false;
+  const hasPermission = (permissionId: PermissionId): boolean => {
+    return user?.permissions?.includes(permissionId) || false;
   };
 
-  const hasAnyPermission = (permissions: string[]): boolean => {
+  const hasAnyPermission = (permissionIds: PermissionId[]): boolean => {
     if (!user?.permissions) return false;
-    return permissions.some(p => user.permissions!.includes(p));
+    return permissionIds.some(id => user.permissions!.includes(id));
+  };
+
+  const hasAllPermissions = (permissionIds: PermissionId[]): boolean => {
+    if (!user?.permissions) return false;
+    return permissionIds.every(id => user.permissions!.includes(id));
   };
 
   const refreshUser = async () => {
@@ -88,6 +95,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     logout,
     hasPermission,
     hasAnyPermission,
+    hasAllPermissions,
     refreshUser,
   };
 

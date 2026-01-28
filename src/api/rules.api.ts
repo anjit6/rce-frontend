@@ -12,6 +12,7 @@ export interface Rule {
   version_major: number;
   version_minor: number;
   author: string | null;
+  author_name?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

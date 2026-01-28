@@ -81,6 +81,9 @@ export default function TestRulePanel({ isOpen, onClose, ruleId, approvalId }: T
 
         // Use pre-compiled code directly from API (no need to compile)
         if (approval.rule_function_code) {
+          console.log("=== GENERATED RULE CODE (from Approval API) ===");
+          console.log(approval.rule_function_code);
+          console.log("=== END GENERATED CODE ===");
           setGeneratedCode(approval.rule_function_code);
         } else {
           Modal.error({
@@ -93,6 +96,11 @@ export default function TestRulePanel({ isOpen, onClose, ruleId, approvalId }: T
       } else if (ruleId) {
         // Load from rules API and compile (Configuration page flow)
         const response = await rulesApi.getComplete(ruleId);
+
+        console.log("=== API RESPONSE ===");
+        console.log("Rule:", response.rule);
+        console.log("Steps:", response.steps);
+        console.log("Rule Function:", response.rule_function);
 
         // Extract input parameters from rule_function
         // Normalize to ensure consistent structure
@@ -122,6 +130,11 @@ export default function TestRulePanel({ isOpen, onClose, ruleId, approvalId }: T
             throw new Error('Some parameters are missing valid names. Please check the rule configuration.');
           }
 
+          // Validate steps exist
+          if (!response.steps || response.steps.length === 0) {
+            throw new Error('Rule has no steps defined. Please configure the rule first.');
+          }
+
           // Transform parameters to match compiler expectations (use fieldName like Configuration page)
           const compilerInputParams = params.map(param => ({
             id: param.fieldName!,
@@ -135,12 +148,19 @@ export default function TestRulePanel({ isOpen, onClose, ruleId, approvalId }: T
             id: response.rule.id,
             name: response.rule.name,
             inputParams: compilerInputParams,
-            steps: response.steps || []
+            steps: response.steps // Compiler now handles API format (next_step, output_data, lhs_type/lhs_value, etc.)
           };
 
+          console.log("=== DATA SENT TO COMPILER ===");
+          console.log(JSON.stringify(ruleForCompiler, null, 2));
+
           const compiledCode = compileRule(ruleForCompiler);
+          console.log("=== GENERATED RULE CODE (from Rules API) ===");
+          console.log(compiledCode);
+          console.log("=== END GENERATED CODE ===");
           setGeneratedCode(compiledCode);
         } catch (compileError) {
+          console.error("Compilation Error:", compileError);
           Modal.error({
             title: 'Compilation Failed',
             content: `Failed to generate JavaScript code: ${(compileError as Error).message}`,
@@ -185,8 +205,10 @@ export default function TestRulePanel({ isOpen, onClose, ruleId, approvalId }: T
     // Validate required parameters
     const errors: Record<string, string> = {};
     inputParams.forEach(param => {
-      if (param.mandatory && !paramValues[param.name]?.trim()) {
-        errors[param.name] = 'This field is required';
+      // Use the same key logic as paramValues initialization
+      const paramKey = approvalId ? param.name : (param.fieldName || param.name);
+      if (param.mandatory && !paramValues[paramKey]?.trim()) {
+        errors[paramKey] = 'This field is required';
       }
     });
 
@@ -200,26 +222,37 @@ export default function TestRulePanel({ isOpen, onClose, ruleId, approvalId }: T
     setFieldErrors({});
 
     try {
+      console.log("=== EXECUTING RULE ===");
+      console.log("Input Parameters:", paramValues);
+
       // Extract the function name from the generated code
       const functionNameMatch = generatedCode.match(/async function (\w+)/);
       if (!functionNameMatch) {
         throw new Error('Could not find function name in generated code');
       }
       const functionName = functionNameMatch[1];
+      console.log("Function Name:", functionName);
 
       // Create and execute the function
       const functionCode = generatedCode + `\nreturn ${functionName};`;
       const ruleFunction = new Function(functionCode)();
 
       // Execute the function with param values (keys already match what compiled code expects)
+      console.log("Executing with input data:", paramValues);
       const result = await ruleFunction(paramValues);
+      console.log("=== EXECUTION RESULT ===");
+      console.log(result);
 
       setTestResult(result);
 
       if (result.success) {
         message.success('Test executed successfully!');
+      } else {
+        console.error("Execution failed with error:", result.error);
       }
     } catch (error: any) {
+      console.error("=== EXECUTION EXCEPTION ===");
+      console.error(error);
       setTestResult({
         success: false,
         error: { message: error.message || 'An error occurred during execution' }
@@ -283,8 +316,8 @@ export default function TestRulePanel({ isOpen, onClose, ruleId, approvalId }: T
                 <p className="text-gray-500 text-sm mb-4">No input parameters defined for this rule.</p>
               ) : (
                 inputParams.map((param) => {
-                  // Use name as key (what pre-compiled code expects)
-                  const paramKey = param.name;
+                  // Use consistent key logic: approvalId uses name, ruleId uses fieldName
+                  const paramKey = approvalId ? param.name : (param.fieldName || param.name);
                   const displayName = param.name;
                   const hasError = !!fieldErrors[paramKey];
                   return (
