@@ -523,7 +523,7 @@ export default function ConditionalCard({
                                     <Button
                                         icon={<PlusOutlined />}
                                         size="large"
-                                        className="border-red-400 text-red-500 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 hover:shadow-lg focus:border-red-400 focus:text-red-500 px-6 transition-all"
+                                        className="border-red-400 text-gray-900 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 hover:shadow-lg focus:border-red-400 focus:text-gray-900 px-6 transition-all"
                                     >
                                         Add Condition
                                     </Button>
@@ -691,7 +691,7 @@ export default function ConditionalCard({
                                                         onAddBranchStep('true');
                                                     }
                                                 }}
-                                                className="border-red-400 text-red-500 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 hover:shadow-lg focus:border-red-400 focus:text-red-500 px-8 shadow-md transition-all"
+                                                className="border-red-400 text-gray-900 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 hover:shadow-lg focus:border-red-400 focus:text-gray-900 px-8 shadow-md transition-all"
                                                 size="large"
                                             >
                                                 Add Step
@@ -800,7 +800,7 @@ export default function ConditionalCard({
                                             )}
                                             <Button
                                                 onClick={() => onAddBranchStep && onAddBranchStep('false')}
-                                                className="border-red-400 text-red-500 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 hover:shadow-lg focus:border-red-400 focus:text-red-500 px-8 shadow-md transition-all"
+                                                className="border-red-400 text-gray-900 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 hover:shadow-lg focus:border-red-400 focus:text-gray-900 px-8 shadow-md transition-all"
                                                 size="large"
                                             >
                                                 Add Step

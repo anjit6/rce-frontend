@@ -113,7 +113,6 @@ export default function RuleCreatePage() {
     const location = useLocation();
     const [rule, setRule] = useState<any>(null);
     const [isViewMode, setIsViewMode] = useState(false); // Default to edit mode
-    const [configurationStarted, setConfigurationStarted] = useState(false);
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
     const [configurationSteps, setConfigurationSteps] = useState<ConfigurationStep[]>([]);
     const [inputParameters, setInputParameters] = useState<InputParameter[]>([
@@ -137,7 +136,7 @@ export default function RuleCreatePage() {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const inputParametersCardRef = useRef<HTMLDivElement>(null);
     const [zoomLevel, setZoomLevel] = useState(100); // Default zoom level 100%
-    const [showConfiguration, setShowConfiguration] = useState(false); // Controls empty state visibility
+    const [showConfiguration, setShowConfiguration] = useState(true); // Show configuration immediately
 
     // Helper function to update configuration steps with automatic step ID assignment
     const updateConfigurationSteps = (steps: ConfigurationStep[] | ((prev: ConfigurationStep[]) => ConfigurationStep[])) => {
@@ -405,7 +404,6 @@ export default function RuleCreatePage() {
                             })), null, 2));
 
                             updateConfigurationSteps(convertedSteps);
-                            setConfigurationStarted(true);
                             setShowConfiguration(true);
                         }
 
@@ -415,7 +413,6 @@ export default function RuleCreatePage() {
                         }
 
                         setHasUnsavedChanges(false);
-                        setConfigurationStarted(completeRuleData.steps.length > 0);
                     }
 
                     // Set view mode based on whether it's a new rule
@@ -830,7 +827,6 @@ export default function RuleCreatePage() {
         }
 
         // Mark configuration as started only when a function is selected
-        setConfigurationStarted(true);
         setHasUnsavedChanges(true); // Mark as changed when adding a step
         setIsConfigModalOpen(false);
 
@@ -967,7 +963,6 @@ export default function RuleCreatePage() {
 
         // Reset states if all steps are deleted
         if (updatedSteps.length === 0) {
-            setConfigurationStarted(false);
             setStepValidationErrors({});
             setShowStepValidation(false);
         }
@@ -1158,6 +1153,33 @@ export default function RuleCreatePage() {
             Modal.error({
                 title: 'Missing Output Card',
                 content: 'Please add an Output Card before saving the configuration.',
+                okText: 'OK',
+                centered: true
+            });
+            return;
+        }
+
+        // Validation: Check if any error-output steps have empty error messages
+        const hasEmptyErrorMessageRecursive = (steps: ConfigurationStep[]): boolean => {
+            return steps.some(step => {
+                if (step.type === 'output' && step.config?.responseType === 'error') {
+                    const errorMessage = step.config.errorMessage?.trim();
+                    return !errorMessage;
+                }
+                if (step.type === 'conditional' && step.config?.next) {
+                    return hasEmptyErrorMessageRecursive(step.config.next.true || []) ||
+                        hasEmptyErrorMessageRecursive(step.config.next.false || []);
+                }
+                return false;
+            });
+        };
+
+        const hasEmptyErrorMessage = hasEmptyErrorMessageRecursive(configurationSteps);
+
+        if (hasEmptyErrorMessage) {
+            Modal.error({
+                title: 'Missing Error Message',
+                content: 'Please provide an error message for all Error-Output steps before saving the configuration.',
                 okText: 'OK',
                 centered: true
             });
@@ -1482,7 +1504,6 @@ export default function RuleCreatePage() {
                     { id: '1', name: 'Input Parameter 1', fieldName: '', type: 'Variable Data Field', dataType: 'String' }
                 ]);
                 updateConfigurationSteps([]);
-                setConfigurationStarted(false);
                 setParameterErrors({});
                 setGeneratedJsCode('');
                 setTestInputs({});
@@ -1695,7 +1716,7 @@ export default function RuleCreatePage() {
                                         {isViewMode ? (
                                             /* View Mode with disabled selects and inputs */
                                             <div className="space-y-4 max-h-[400px] overflow-y-auto mt-6 px-1 pb-1">
-                                                {inputParameters.map((param, index) => (
+                                                {inputParameters.map((param) => (
                                                     <div key={param.id}>
                                                         <div className="grid grid-cols-[1fr_1fr_1fr] gap-6 items-start">
                                                             {/* Type Column */}
@@ -1741,18 +1762,13 @@ export default function RuleCreatePage() {
                                                                 />
                                                             </div>
                                                         </div>
-
-                                                        {/* Horizontal Line Separator */}
-                                                        {index < inputParameters.length - 1 && (
-                                                            <div className="border-b border-gray-200 my-4"></div>
-                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
                                         ) : (
                                             /* Editable Form View for Edit Mode */
                                             <div className="space-y-4 max-h-[400px] overflow-y-auto mt-6 px-1 pb-1">
-                                                {inputParameters.map((param, index) => (
+                                                {inputParameters.map((param) => (
                                                     <div key={param.id}>
                                                         <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-6 items-start">
                                                             {/* Type Column */}
@@ -1852,11 +1868,6 @@ export default function RuleCreatePage() {
                                                                 )}
                                                             </div>
                                                         </div>
-
-                                                        {/* Horizontal Line Separator */}
-                                                        {index < inputParameters.length - 1 && (
-                                                            <div className="border-b border-gray-200 my-4"></div>
-                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
@@ -1870,7 +1881,7 @@ export default function RuleCreatePage() {
                                             <Button
                                                 size="large"
                                                 onClick={handleStartConfiguration}
-                                                disabled={configurationStarted || configurationSteps.length > 0}
+                                                disabled={configurationSteps.length > 0}
                                                 className="border-red-400 text-red-500 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 hover:shadow-lg focus:border-red-400 focus:text-red-500 rounded-lg px-8 disabled:bg-gray-300 disabled:text-gray-500 disabled:border-gray-300 transition-all"
                                             >
                                                 Start

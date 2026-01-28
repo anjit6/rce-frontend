@@ -121,7 +121,7 @@ html {
 
 /* Override Ant Design large select height */
 :where(.css-dev-only-do-not-override-mncuj7).ant-select-single.ant-select-lg {
-  height: 42px !important;
+  height: 45px !important;
 }
 
 /* Large Input Fields */
@@ -172,8 +172,51 @@ html {
 }
 
 .ant-select-focused .ant-select-selector {
-  border-color: hsl(0 72.2% 50.6%) !important;
-  box-shadow: 0 0 0 1px hsl(0 72.2% 50.6%) !important;
+  border-color: #111827 !important;
+  box-shadow: 0 0 0 1px #111827 !important;
+}
+
+/* Override Ant Design error state to use grey borders instead of red */
+.ant-select-status-error:not(.ant-select-disabled):not(.ant-select-customize-input) .ant-select-selector {
+  border-color: #111827 !important;
+}
+
+.ant-select-status-error:not(.ant-select-disabled):not(.ant-select-customize-input).ant-select-focused .ant-select-selector {
+  border-color: #111827 !important;
+  box-shadow: 0 0 0 1px #111827 !important;
+}
+
+.ant-input-status-error:not(.ant-input-disabled):not(.ant-input-borderless).ant-input,
+.ant-input-status-error:not(.ant-input-disabled):not(.ant-input-borderless).ant-input:hover {
+  border-color: #111827 !important;
+}
+
+.ant-input-status-error:not(.ant-input-disabled):not(.ant-input-borderless).ant-input:focus,
+.ant-input-status-error:not(.ant-input-disabled):not(.ant-input-borderless).ant-input-focused {
+  border-color: #111827 !important;
+  box-shadow: 0 0 0 1px #111827 !important;
+}
+
+.ant-input-number-status-error:not(.ant-input-number-disabled):not(.ant-input-number-borderless).ant-input-number,
+.ant-input-number-status-error:not(.ant-input-number-disabled):not(.ant-input-number-borderless).ant-input-number:hover {
+  border-color: #111827 !important;
+}
+
+.ant-input-number-status-error:not(.ant-input-number-disabled):not(.ant-input-number-borderless).ant-input-number:focus,
+.ant-input-number-status-error:not(.ant-input-number-disabled):not(.ant-input-number-borderless).ant-input-number-focused {
+  border-color: #111827 !important;
+  box-shadow: 0 0 0 1px #111827 !important;
+}
+
+.ant-picker-status-error.ant-picker,
+.ant-picker-status-error.ant-picker:not([disabled]):hover {
+  border-color: #111827 !important;
+}
+
+.ant-picker-status-error.ant-picker-focused,
+.ant-picker-status-error.ant-picker:focus {
+  border-color: #111827 !important;
+  box-shadow: 0 0 0 1px #111827 !important;
 }
 
 /* Select dropdown arrow - vertically centered */

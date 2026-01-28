@@ -8,8 +8,8 @@ const textareaVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-gray-300 focus:border-red-500",
-        error: "border-red-500 focus:border-red-500",
+        default: "border-gray-300 focus:border-gray-900",
+        error: "border-gray-900 focus:border-gray-900",
       },
     },
     defaultVariants: {

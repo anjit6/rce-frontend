@@ -66,7 +66,7 @@ export default function ApproveModal({ isOpen, onClose, onSubmit, loading = fals
         {/* Content - Scrollable */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="mb-6">
-            <label className="block text-xl font-semibold text-gray-900 mb-4">Comments</label>
+            <h3 className="text-md font-semibold mb-4">Comments</h3>
             <textarea
               placeholder="Enter comments for approve..."
               value={comment}

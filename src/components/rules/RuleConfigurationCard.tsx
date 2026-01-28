@@ -369,7 +369,7 @@ export default function RuleConfigurationCard({ step, inputParameters, stepIndex
                     {/* Output Variable */}
                     <div className="border-t border-gray-200 pt-4">
                         <div className="flex items-center justify-between">
-                            <Label className="text-sm font-medium text-gray-900">Output Variable</Label>
+                            <Label className="text-sm font-medium text-gray-700">Output Variable</Label>
                             <div className="flex flex-col items-end">
                                 <Input
                                     value={config.outputVariable ?? `step_${stepIndex + 1}_output_variable`}

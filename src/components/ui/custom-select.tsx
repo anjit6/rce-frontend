@@ -43,8 +43,8 @@ const CustomSelect = React.forwardRef<HTMLDivElement, CustomSelectProps>(
 
     // Variant classes
     const variantClasses = {
-      default: 'border-gray-300 focus:border-red-500',
-      error: 'border-red-500 focus:border-red-500'
+      default: 'border-gray-300 focus:border-gray-900',
+      error: 'border-gray-900 focus:border-gray-900'
     }
 
     // Close dropdown when clicking outside
@@ -138,7 +138,7 @@ const CustomSelect = React.forwardRef<HTMLDivElement, CustomSelectProps>(
               "flex w-full items-center justify-between rounded-md border bg-white px-3 py-2 transition-colors appearance-none cursor-pointer focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
               sizeClasses[selectSize],
               variantClasses[variant],
-              isOpen && "border-red-500",
+              isOpen && "border-gray-900",
               className
             )}
           >

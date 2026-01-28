@@ -234,7 +234,7 @@ export default function ApprovalsPage() {
                 >
                   <Button
                     icon={<FilterOutlined />}
-                    className="rounded-lg border-gray-200 hover:border-red-500 hover:text-red-500 focus:border-red-500 focus:text-red-500 h-10"
+                    className="rounded-lg border-gray-200 hover:border-red-500 hover:text-gray-900 focus:border-red-500 focus:text-gray-900 h-10"
                   >
                     {selectedStage || selectedRequestedBy ? (
                       <span className="ml-1">

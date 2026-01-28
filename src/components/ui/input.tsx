@@ -8,8 +8,8 @@ const inputVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-gray-300 focus:border-red-500",
-        error: "border-red-500 focus:border-red-500",
+        default: "border-gray-300 focus:border-gray-900",
+        error: "border-gray-900 focus:border-gray-900",
       },
       inputSize: {
         sm: "h-9 px-3 py-2 text-sm",

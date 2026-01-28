@@ -94,7 +94,7 @@ export default function ApprovalDetailPage() {
 
   const handleViewRule = () => {
     if (approval?.rule_id) {
-      navigate(`/rule/create/${approval.rule_id}`);
+      window.open(`/rule/create/${approval.rule_id}`, '_blank');
     }
   };
 
@@ -194,7 +194,7 @@ export default function ApprovalDetailPage() {
                 <Button
                   icon={<ExportOutlined />}
                   onClick={handleViewRule}
-                  className="rounded-lg border-gray-300 hover:border-red-500 hover:text-red-500 h-10 px-5"
+                  className="rounded-lg border-gray-300 hover:border-red-500 hover:text-gray-900 h-10 px-5"
                 >
                   View Rule
                 </Button>
@@ -203,14 +203,14 @@ export default function ApprovalDetailPage() {
                   <Button
                     icon={<ExportOutlined />}
                     onClick={handleViewRule}
-                    className="rounded-lg border-gray-300 hover:border-red-500 hover:text-red-500 h-10 px-5"
+                    className="rounded-lg border-gray-300 hover:border-red-500 hover:text-gray-900 h-10 px-5"
                   >
                     View Rule
                   </Button>
                   <Button
                     icon={<PlayCircleOutlined />}
                     onClick={handleTestRule}
-                    className="rounded-lg border-gray-300 hover:border-red-500 hover:text-red-500 h-10 px-5"
+                    className="rounded-lg border-gray-300 hover:border-red-500 hover:text-gray-900 h-10 px-5"
                   >
                     Test Rule
                   </Button>
@@ -429,7 +429,6 @@ export default function ApprovalDetailPage() {
             isOpen={isTestRulePanelOpen}
             onClose={() => setIsTestRulePanelOpen(false)}
             approvalId={id}
-            ruleName={approval.rule_name || `Rule ${approval.rule_id}`}
           />
         )}
       </div>
