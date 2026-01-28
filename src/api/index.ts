@@ -10,7 +10,7 @@ export { categoriesApi } from './categories.api';
 export { subfunctionsApi } from './subfunctions.api';
 
 // Export types
-export type { Rule, RuleStatus, CreateRuleDto, UpdateRuleDto, ApprovalRequestRule } from './rules.api';
+export type { Rule, RuleStatus, CreateRuleDto, UpdateRuleDto, ApprovalRequestRule, SaveVersionDto, RuleVersion, SaveVersionResponse } from './rules.api';
 export type { Subfunction } from './subfunctions.api';
 
 // Re-export for convenience

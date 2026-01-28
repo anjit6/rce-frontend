@@ -105,6 +105,30 @@ export interface CompleteRuleResponse {
   steps: any[];
 }
 
+export interface SaveVersionDto {
+  comment?: string;
+}
+
+export interface RuleVersion {
+  id: number;
+  rule_id: number;
+  major_version: number;
+  minor_version: number;
+  stage: RuleStatus;
+  rule_function_code: string;
+  rule_function_input_params: any[];
+  rule_steps: any[];
+  test_status: string | null;
+  created_by: string;
+  created_at: string;
+  comment: string | null;
+}
+
+export interface SaveVersionResponse {
+  rule: Rule;
+  rule_version: RuleVersion;
+}
+
 // Rules API Service
 export const rulesApi = {
   /**
@@ -203,6 +227,18 @@ export const rulesApi = {
     const response = await apiClient.get<ApiResponse<ApprovalRequestRule[]>>('/api/rules', { params });
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to fetch rules for approval request');
+    }
+    return response.data.data;
+  },
+
+  /**
+   * Save a new version of the rule - creates a snapshot in rule_versions table
+   * Increments minor version number
+   */
+  async saveVersion(id: number, data?: SaveVersionDto): Promise<SaveVersionResponse> {
+    const response = await apiClient.post<ApiResponse<SaveVersionResponse>>(`/api/rules/${id}/version`, data || {});
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to save version');
     }
     return response.data.data;
   },

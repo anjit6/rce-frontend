@@ -1316,6 +1316,71 @@ export default function RuleCreatePage() {
         }
     };
 
+    const handleSaveVersion = async () => {
+        if (!rule?.id) {
+            Modal.error({
+                title: 'Save Version Failed',
+                content: 'Please save the rule first before creating a version.',
+                okText: 'OK',
+                centered: true
+            });
+            return;
+        }
+
+        // Check if there are unsaved changes
+        if (hasUnsavedChanges) {
+            Modal.confirm({
+                title: 'Unsaved Changes',
+                content: 'You have unsaved changes. Would you like to save them first before creating a version?',
+                okText: 'Save & Create Version',
+                cancelText: 'Cancel',
+                centered: true,
+                icon: <ExclamationCircleOutlined />,
+                onOk: async () => {
+                    await handleSave();
+                    // After saving, create the version
+                    try {
+                        const result = await rulesApi.saveVersion(rule.id);
+                        setRule(result.rule);
+                        Modal.success({
+                            title: 'Version Saved Successfully',
+                            content: `Version ${result.rule.version_major}.${result.rule.version_minor} has been created.`,
+                            okText: 'OK',
+                            centered: true
+                        });
+                    } catch (error: any) {
+                        Modal.error({
+                            title: 'Save Version Failed',
+                            content: error.message || 'Failed to save version. Please try again.',
+                            okText: 'OK',
+                            centered: true
+                        });
+                    }
+                }
+            });
+            return;
+        }
+
+        try {
+            const result = await rulesApi.saveVersion(rule.id);
+            setRule(result.rule);
+            Modal.success({
+                title: 'Version Saved Successfully',
+                content: `Version ${result.rule.version_major}.${result.rule.version_minor} has been created.`,
+                okText: 'OK',
+                centered: true
+            });
+        } catch (error: any) {
+            console.error('Failed to save version:', error);
+            Modal.error({
+                title: 'Save Version Failed',
+                content: error.message || 'Failed to save version. Please try again.',
+                okText: 'OK',
+                centered: true
+            });
+        }
+    };
+
     const handleGenerateJavaScript = () => {
         // Generate the rule JSON from current state
         if (rule && configurationSteps.length > 0) {
@@ -1974,6 +2039,14 @@ export default function RuleCreatePage() {
                             className="bg-red-500 hover:bg-red-400 focus:bg-red-400 border-none"
                         >
                             Save
+                        </Button>
+                        <Button
+                            type="primary"
+                            size="large"
+                            onClick={handleSaveVersion}
+                            className="bg-blue-500 hover:bg-blue-400 focus:bg-blue-400 border-none"
+                        >
+                            Save Version
                         </Button>
                         <Button
                             size="large"
