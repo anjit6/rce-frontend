@@ -8,7 +8,6 @@ import RejectModal from '../../components/approvals/RejectModal';
 import TestRulePanel from '../../components/approvals/TestRulePanel';
 import { approvalsApi, type RuleApproval, type ApproveRejectDto } from '../../api/approvals.api';
 import { useAuth } from '../../context/AuthContext';
-import PermissionGate from '../../components/auth/PermissionGate';
 import { PERMISSIONS, getApprovePermission } from '../../constants/permissions';
 
 export default function ApprovalDetailPage() {
