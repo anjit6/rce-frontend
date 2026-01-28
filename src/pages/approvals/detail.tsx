@@ -7,16 +7,37 @@ import ApproveModal from '../../components/approvals/ApproveModal';
 import RejectModal from '../../components/approvals/RejectModal';
 import TestRulePanel from '../../components/approvals/TestRulePanel';
 import { approvalsApi, type RuleApproval, type ApproveRejectDto } from '../../api/approvals.api';
+import { useAuth } from '../../context/AuthContext';
+import PermissionGate from '../../components/auth/PermissionGate';
+import { PERMISSIONS, getApprovePermission } from '../../constants/permissions';
 
 export default function ApprovalDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user, hasPermission } = useAuth();
   const [approval, setApproval] = useState<RuleApproval | null>(null);
   const [loading, setLoading] = useState(true);
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [isTestRulePanelOpen, setIsTestRulePanelOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Get the current user's full name for action_by
+  const currentUserName = user ? `${user.first_name} ${user.last_name}` : 'Unknown User';
+
+  // Check if user has permission to approve this specific stage transition
+  const canApproveTransition = approval
+    ? (() => {
+        const approvePermission = getApprovePermission(approval.from_stage, approval.to_stage);
+        return approvePermission ? hasPermission(approvePermission) : false;
+      })()
+    : false;
+
+  // Check if user can reject (needs REJECT_APPROVAL permission)
+  const canReject = hasPermission(PERMISSIONS.REJECT_APPROVAL);
+
+  // Check if user can test rules
+  const canTestRule = hasPermission(PERMISSIONS.TEST_RULE);
 
   useEffect(() => {
     if (id) {
@@ -47,7 +68,7 @@ export default function ApprovalDetailPage() {
       setActionLoading(true);
       const actionData: ApproveRejectDto = {
         action: 'APPROVED',
-        action_by: 'Current User', // This should come from auth context
+        action_by: currentUserName,
         action_comment: comment || undefined,
       };
 
@@ -73,7 +94,7 @@ export default function ApprovalDetailPage() {
       setActionLoading(true);
       const actionData: ApproveRejectDto = {
         action: 'REJECTED',
-        action_by: 'Current User', // This should come from auth context
+        action_by: currentUserName,
         action_comment: comment || undefined,
       };
 
@@ -207,27 +228,33 @@ export default function ApprovalDetailPage() {
                   >
                     View Rule
                   </Button>
-                  <Button
-                    icon={<PlayCircleOutlined />}
-                    onClick={handleTestRule}
-                    className="rounded-lg border-gray-300 hover:border-red-500 hover:text-gray-900 h-10 px-5"
-                  >
-                    Test Rule
-                  </Button>
-                  <Button
-                    type="primary"
-                    onClick={() => setIsApproveModalOpen(true)}
-                    className="rounded-lg bg-red-600 hover:bg-red-500 border-none h-10 px-6"
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    danger
-                    onClick={() => setIsRejectModalOpen(true)}
-                    className="rounded-lg h-10 px-6"
-                  >
-                    Reject
-                  </Button>
+                  {canTestRule && (
+                    <Button
+                      icon={<PlayCircleOutlined />}
+                      onClick={handleTestRule}
+                      className="rounded-lg border-gray-300 hover:border-red-500 hover:text-gray-900 h-10 px-5"
+                    >
+                      Test Rule
+                    </Button>
+                  )}
+                  {canApproveTransition && (
+                    <Button
+                      type="primary"
+                      onClick={() => setIsApproveModalOpen(true)}
+                      className="rounded-lg bg-red-600 hover:bg-red-500 border-none h-10 px-6"
+                    >
+                      Approve
+                    </Button>
+                  )}
+                  {canReject && (
+                    <Button
+                      danger
+                      onClick={() => setIsRejectModalOpen(true)}
+                      className="rounded-lg h-10 px-6"
+                    >
+                      Reject
+                    </Button>
+                  )}
                 </>
               )}
             </div>
@@ -361,8 +388,8 @@ export default function ApprovalDetailPage() {
               </div>
             </div>
 
-            {/* Action Details for Withdrawn (not Approved/Rejected, as those are shown in banner) */}
-            {!isPending && approval.status !== 'APPROVED' && approval.status !== 'REJECTED' && approval.action_by && (
+            {/* Action Details for Withdrawn/Rejected (not Approved, as that is shown in banner) */}
+            {!isPending && approval.status !== 'APPROVED' && approval.action_by && (
               <div className="mt-8 pt-8 border-t border-gray-200">
                 <div className="grid grid-cols-2 gap-8 mb-6">
                   <div>

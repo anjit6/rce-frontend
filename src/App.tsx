@@ -10,6 +10,7 @@ import LoginPage from './pages/login';
 import { SidebarProvider } from './context/SidebarContext';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import { PERMISSIONS, PERMISSION_GROUPS } from './constants/permissions';
 
 function App() {
   return (
@@ -23,28 +24,32 @@ function App() {
             {/* Protected routes */}
             <Route path="/" element={<Navigate to="/rules" replace />} />
             <Route path="/rules" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredPermissions={PERMISSION_GROUPS.VIEW_RULES}>
                 <RulesPage />
               </ProtectedRoute>
             } />
             <Route path="/rule/create/:ruleId" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredPermissions={[PERMISSIONS.CREATE_RULE, PERMISSIONS.EDIT_RULE]}>
                 <RuleCreatePage />
               </ProtectedRoute>
             } />
             <Route path="/approvals" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredPermissions={PERMISSION_GROUPS.VIEW_APPROVALS}>
                 <ApprovalsPage />
               </ProtectedRoute>
             } />
-            <Route path="/approvals/:id" element={<ApprovalDetailPage />} />
+            <Route path="/approvals/:id" element={
+              <ProtectedRoute requiredPermissions={[PERMISSIONS.VIEW_APPROVAL_REQUEST_DETAILS]}>
+                <ApprovalDetailPage />
+              </ProtectedRoute>
+            } />
             <Route path="/mapping" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredPermissions={PERMISSION_GROUPS.VIEW_RULES}>
                 <MappingsPage />
               </ProtectedRoute>
             } />
             <Route path="/history" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredPermissions={PERMISSION_GROUPS.VIEW_RULES}>
                 <AuditPage />
               </ProtectedRoute>
             } />

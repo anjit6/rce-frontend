@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { PermissionId } from '../constants/permissions';
 
 // Auth Types
 export interface Role {
@@ -17,7 +18,7 @@ export interface UserPublic {
   email: string;
   role_id: number | null;
   role?: Role;
-  permissions?: string[];
+  permissions?: PermissionId[];
   is_active: boolean;
   last_login_at: string | null;
   created_at: string;
@@ -160,29 +161,29 @@ export const authApi = {
   },
 
   /**
-   * Check if user has specific permission
+   * Check if user has specific permission by ID
    */
-  hasPermission(permission: string): boolean {
+  hasPermission(permissionId: PermissionId): boolean {
     const user = this.getStoredUser();
-    return user?.permissions?.includes(permission) || false;
+    return user?.permissions?.includes(permissionId) || false;
   },
 
   /**
-   * Check if user has any of the specified permissions
+   * Check if user has any of the specified permissions by IDs
    */
-  hasAnyPermission(permissions: string[]): boolean {
+  hasAnyPermission(permissionIds: PermissionId[]): boolean {
     const user = this.getStoredUser();
     if (!user?.permissions) return false;
-    return permissions.some(p => user.permissions!.includes(p));
+    return permissionIds.some(id => user.permissions!.includes(id));
   },
 
   /**
-   * Check if user has all of the specified permissions
+   * Check if user has all of the specified permissions by IDs
    */
-  hasAllPermissions(permissions: string[]): boolean {
+  hasAllPermissions(permissionIds: PermissionId[]): boolean {
     const user = this.getStoredUser();
     if (!user?.permissions) return false;
-    return permissions.every(p => user.permissions!.includes(p));
+    return permissionIds.every(id => user.permissions!.includes(id));
   },
 
   /**

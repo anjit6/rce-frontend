@@ -7,6 +7,8 @@ import type { MenuProps } from 'antd';
 import CreateRuleModal from './CreateRuleModal';
 import { rulesService } from '../../services/rules.service';
 import { Input } from '../ui/input';
+import PermissionGate from '../auth/PermissionGate';
+import { PERMISSIONS } from '../../constants/permissions';
 
 // Type definitions for table display
 interface TableRule {
@@ -336,25 +338,27 @@ export default function RulesList() {
                             </Button>
                         </Dropdown>
 
-                        {/* Create Rule Dropdown */}
-                        <Dropdown
-                            menu={{
-                                items: createRuleMenuItems,
-                                onClick: handleMenuClick,
-                                className: 'w-72'
-                            }}
-                            trigger={['click']}
-                            placement="bottomRight"
-                        >
-                            <Button
-                                type="primary"
-                                icon={<PlusOutlined />}
-                                className="rounded-lg bg-red-600 hover:bg-red-500 focus:bg-red-500 border-none flex items-center"
+                        {/* Create Rule Dropdown - only shown if user has CREATE_RULE permission */}
+                        <PermissionGate permissions={[PERMISSIONS.CREATE_RULE]}>
+                            <Dropdown
+                                menu={{
+                                    items: createRuleMenuItems,
+                                    onClick: handleMenuClick,
+                                    className: 'w-72'
+                                }}
+                                trigger={['click']}
+                                placement="bottomRight"
                             >
-                                <span>Create Rule</span>
-                                <DownOutlined className="ml-2 text-xs" />
-                            </Button>
-                        </Dropdown>
+                                <Button
+                                    type="primary"
+                                    icon={<PlusOutlined />}
+                                    className="rounded-lg bg-red-600 hover:bg-red-500 focus:bg-red-500 border-none flex items-center"
+                                >
+                                    <span>Create Rule</span>
+                                    <DownOutlined className="ml-2 text-xs" />
+                                </Button>
+                            </Dropdown>
+                        </PermissionGate>
                     </Space>
                 </div>
             </div>
