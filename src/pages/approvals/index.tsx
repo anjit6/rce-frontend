@@ -6,10 +6,14 @@ import ApprovalsList from '../../components/approvals/ApprovalsList';
 import NewRequestModal from '../../components/approvals/NewRequestModal';
 import { Input } from '../../components/ui/input';
 import { approvalsApi, type CreateApprovalDto, type RuleStatus } from '../../api/approvals.api';
+import { useAuth } from '../../context/AuthContext';
+import PermissionGate from '../../components/auth/PermissionGate';
+import { PERMISSIONS } from '../../constants/permissions';
 
 type TabType = 'pending' | 'all';
 
 export default function ApprovalsPage() {
+  const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState<TabType>('pending');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -18,6 +22,9 @@ export default function ApprovalsPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [selectedStage, setSelectedStage] = useState<RuleStatus | null>(null);
   const [selectedRequestedBy, setSelectedRequestedBy] = useState<string | null>(null);
+
+  // Get the current user's ID for requested_by
+  const currentUserId = user?.id || '';
 
   // Debounce search input
   useEffect(() => {
@@ -53,7 +60,7 @@ export default function ApprovalsPage() {
         rule_id: ruleId,
         from_stage: fromStage,
         to_stage: toStage,
-        requested_by: 'Current User', // This should come from auth context
+        requested_by: currentUserId,
         request_comment: comments || `Requesting approval to move ${ruleName} from ${fromStage} to ${toStage}`,
       };
 
@@ -253,15 +260,17 @@ export default function ApprovalsPage() {
                   </Button>
                 </Dropdown>
 
-                {/* New Request Button */}
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={() => setIsNewRequestModalOpen(true)}
-                  className="rounded-lg bg-red-600 hover:bg-red-500 border-none h-10 px-5"
-                >
-                  New Request
-                </Button>
+                {/* New Request Button - only shown if user has CREATE_APPROVAL_REQUEST permission */}
+                <PermissionGate permissions={[PERMISSIONS.CREATE_APPROVAL_REQUEST]}>
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => setIsNewRequestModalOpen(true)}
+                    className="rounded-lg bg-red-600 hover:bg-red-500 border-none h-10 px-5"
+                  >
+                    New Request
+                  </Button>
+                </PermissionGate>
               </Space>
             </div>
           </div>

@@ -9,6 +9,7 @@ import { rulesService } from '../../services/rules.service';
 import { Input } from '../ui/input';
 import PermissionGate from '../auth/PermissionGate';
 import { PERMISSIONS } from '../../constants/permissions';
+import { useAuth } from '../../context/AuthContext';
 
 // Type definitions for table display
 interface TableRule {
@@ -25,6 +26,7 @@ interface TableRule {
 
 export default function RulesList() {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [searchQuery, setSearchQuery] = useState('');
     const [searchInput, setSearchInput] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -131,7 +133,7 @@ export default function RulesList() {
                     name: data.name,
                     description: data.description,
                     type: selectedRuleType,
-                    author: ''
+                    author: user?.id || ''
                 });
 
                 message.success('Rule created successfully!');
